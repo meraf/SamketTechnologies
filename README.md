@@ -9,3 +9,11 @@ Storefront (`/`) + shop app (`/admin.html`, PIN 1234, installable on any phone/P
 **Edit:** shop phone, address, hours and testimonials at the top of `public/index.html`. Data lives in `data.json` (back it up).
 
 **Also included:** item photos (shown on the storefront), sales history with profit, receipt search and per-item warranty status, refunds that return items to stock, discount and payment method on sales, low-stock banner on every tab, delete items, and JSON backup/restore (Settings).
+
+## Deploy on a server (HTTPS, automatic certificate)
+1. Get a VPS with Docker and point your domain's DNS A record to it.
+2. Put your domain in `Caddyfile`, then run: `SYNC_KEY=your-secret docker compose up -d`
+3. Open `https://yourdomain.com`, go to Staff, and in Settings set the same sync key and a new PIN on every device.
+Data is kept in `./data/data.json`; back it up. No Docker: run `DATA_DIR=/var/samket SYNC_KEY=... node server.js` behind any HTTPS proxy (nginx, Caddy), or on Render/Railway/Fly with a persistent disk.
+
+Warranty is in days everywhere and defaults to 0. Customers open tickets with name, phone, device type and issue; a password is optional and turns their phone into an account (My tickets).
