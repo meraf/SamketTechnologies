@@ -1,0 +1,24 @@
+:root{--bg:#eef1ec;--card:#fff;--tx:#10231d;--mu:#5d6f67;--ac:#0f5c46;--on:#fff;--or:#ff6a1a;--ok:#0f7a52;--bad:#d6361f;--warn:#b86400;--bd:#d5ddd6}
+@media(prefers-color-scheme:dark){:root{--bg:#0c1512;--card:#13211c;--tx:#e7f0ea;--mu:#8fa69b;--ac:#3ddc97;--on:#06130d;--ok:#3ddc97;--bad:#ff7a64;--warn:#ffb340;--bd:#223a31}}
+*{box-sizing:border-box;margin:0}
+body{font:15px/1.55 system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+a{color:inherit}.w{max-width:1100px;margin:auto;padding:0 18px}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:2px solid var(--tx)}
+.nav .w{display:flex;align-items:center;gap:14px;height:60px;overflow-x:auto}
+.logo{font-weight:900;font-size:20px;letter-spacing:-.5px;white-space:nowrap}.logo i{color:var(--or);font-style:normal}
+.sp{flex:1}
+.btn{border:0;border-radius:8px;padding:10px 16px;font:700 14px system-ui;color:var(--on);background:var(--ac);cursor:pointer;text-decoration:none;display:inline-block;white-space:nowrap}
+.btn.g{background:transparent;color:var(--tx);border:1.5px solid var(--bd)}.btn.o{background:var(--or);color:#fff}.btn.s{padding:6px 10px;font-size:13px}.btn:disabled{opacity:.4}
+.card{background:var(--card);border:1.5px solid var(--bd);border-radius:10px;padding:18px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+input,select,textarea{width:100%;padding:10px 12px;border-radius:8px;border:1.5px solid var(--bd);background:var(--bg);color:var(--tx);font:inherit}
+input:focus,select:focus,textarea:focus,.btn:focus-visible{outline:3px solid var(--or);outline-offset:1px}
+label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
+.tag{padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;background:var(--bd);color:var(--tx);white-space:nowrap}
+.tag.ok{color:var(--ok)}.tag.bad{color:var(--bad)}.tag.warn{color:var(--warn)}
+table{width:100%;border-collapse:collapse}th,td{padding:10px 8px;text-align:left;border-bottom:1px solid var(--bd);font-size:14px;vertical-align:top}th{color:var(--mu);font-size:13px}
+.tw{overflow-x:auto}
+dialog{border:2px solid var(--tx);border-radius:12px;background:var(--card);color:var(--tx);padding:20px;width:min(480px,94vw);max-height:92vh;overflow:auto}dialog::backdrop{background:#000a}
+h1{font-size:clamp(34px,7vw,64px);line-height:1.02;letter-spacing:-2px}h2{font-size:24px;margin-bottom:12px;letter-spacing:-.5px}
+section{padding:46px 0}.big{font-size:28px;font-weight:800}.mu{color:var(--mu)}
+.code{font-family:ui-monospace,Menlo,Consolas,monospace}
