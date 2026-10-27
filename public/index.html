@@ -24,7 +24,7 @@ async function load(){const l=await all('item');
 function draw(){const k=[...new Set(items.map(i=>i.cat))],q=$('#q').value.toLowerCase();
  $('#cats').innerHTML=['All',...k].map(c=>`<span class="tag chip ${(c==='All'?'':c)===cat?'on':''}" onclick="cat='${c==='All'?'':c}';draw()">${c}</span>`).join('');
  const L=items.filter(i=>(!cat||i.cat===cat)&&(i.name+i.cat).toLowerCase().includes(q));
- $('#list').innerHTML=L.map(i=>`<div class=card><div class=ic>${E[i.cat]||'📦'}</div><b>${esc(i.name)}</b><div class=big>${(+i.price).toLocaleString()} <small>ETB</small></div><p class=mu>${i.war||0} month warranty</p><span class="tag ${i.stock<=0?'bad':i.stock<3?'warn':'ok'}">${i.stock<=0?'Out of stock':i.stock<3?'Only '+i.stock+' left':'In stock'}</span></div>`).join('')||'<p class=mu>Our catalogue is being updated. Call us for what is available.</p>'}
+ $('#list').innerHTML=L.map(i=>`<div class=card>${i.img?`<img src="${i.img}" alt="" style="width:100%;height:150px;object-fit:cover;border-radius:8px">`:`<div class=ic>${E[i.cat]||'📦'}</div>`}<b>${esc(i.name)}</b><div class=big>${(+i.price).toLocaleString()} <small>ETB</small></div><p class=mu>${i.war||0} month warranty</p><span class="tag ${i.stock<=0?'bad':i.stock<3?'warn':'ok'}">${i.stock<=0?'Out of stock':i.stock<3?'Only '+i.stock+' left':'In stock'}</span></div>`).join('')||'<p class=mu>Our catalogue is being updated. Call us for what is available.</p>'}
 $('#rf').onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(e.target));let code;
  try{const r=await fetch('/api/req',{method:'POST',body:JSON.stringify(o)});code=(await r.json()).code}
  catch{code=nextCode('SK');await save('ticket',{...o,code,status:'Received',war:30,cost:0,date:Date.now()})}

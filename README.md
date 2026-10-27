@@ -7,3 +7,5 @@ Storefront (`/`) + shop app (`/admin.html`, PIN 1234, installable on any phone/P
 **Offline & conflicts:** every device keeps a full IndexedDB copy and works with no internet. Stock is the sum of append-only movements (sales/receipts), so two offline devices selling the same item merge correctly; edits to items/tickets are last-write-wins per record; ticket and receipt codes include the device ID so they never clash. Sync runs every 20 s and on reconnect.
 
 **Edit:** shop phone, address, hours and testimonials at the top of `public/index.html`. Data lives in `data.json` (back it up).
+
+**Also included:** item photos (shown on the storefront), sales history with profit, receipt search and per-item warranty status, refunds that return items to stock, discount and payment method on sales, low-stock banner on every tab, delete items, and JSON backup/restore (Settings).
