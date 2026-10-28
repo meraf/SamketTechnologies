@@ -1,4 +1,8 @@
 .env
-data
 node_modules
 dist
+.vercel
+# old file database: contains customer data, never commit it
+data
+data.json
+*.log

@@ -1,3 +1,4 @@
+# The database is the cloud Postgres in DATABASE_URL (Neon, Supabase...). Nothing is stored on this server.
 services:
   app:
     build: .
@@ -5,7 +6,6 @@ services:
     env_file: .env
     environment:
       - SYNC_KEY=${SYNC_KEY:-change-me}
-    volumes: ["./data:/data"]
   caddy:
     image: caddy:2
     restart: always

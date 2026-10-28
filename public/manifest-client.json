@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "Samket Technologies",
+  "short_name": "Samket",
+  "description": "Shop, track your repair and check your warranty.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f5c46",
+  "theme_color": "#0f5c46",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

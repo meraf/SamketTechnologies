@@ -1,0 +1,15 @@
+{
+  "id": "/staff/",
+  "name": "Samket Staff",
+  "short_name": "Samket Staff",
+  "description": "Point of sale, repairs and stock for Samket staff.",
+  "start_url": "/staff/login",
+  "scope": "/staff/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "/icon-staff.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-staff.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
