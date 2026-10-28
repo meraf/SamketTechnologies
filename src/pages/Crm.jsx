@@ -1,8 +1,40 @@
-import {useState} from 'react'
-import {useDB,mn} from '../db'
-import {Card,Tag,In,Page} from '../ui'
-export default function Crm(){const d=useDB(),[q,setQ]=useState(''),[sel,setSel]=useState(null)
- const L=d.cust.filter(c=>(c.name+c.phone).toLowerCase().includes(q.toLowerCase()))
- const hist=c=>[...d.sale.filter(s=>s.custId===c.id).map(s=>({t:s.date,k:'Purchase',x:`${s.code}: ${s.lines.map(l=>l.name+(l.serial?' (S/N '+l.serial+')':'')).join(', ')}`,a:s.total,v:s.void})),...d.ticket.filter(t=>t.custId===c.id).map(t=>({t:t.date,k:'Repair',x:`${t.code}: ${t.device||''} ${t.issue||''} [${t.status}]`,a:t.cost}))].sort((a,b)=>b.t-a.t)
- return <Page title="Customers"><In label="Search name or phone" value={q} onChange={e=>setQ(e.target.value)}/><div className="grid gap-4 lg:grid-cols-[1fr_1.5fr]"><div className="space-y-2">{L.map(c=><button key={c.id} onClick={()=>setSel(c)} className={`block w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${sel?.id===c.id?'border-orange-500 bg-orange-500/10':'border-white/30 bg-white/60 dark:border-white/10 dark:bg-white/5'}`}><b>{c.name||'(no name)'}</b><div className="text-sm text-slate-500">{c.phone}</div></button>)}</div>
-  <Card>{sel?<><h2 className="text-xl font-bold">{sel.name}</h2><p className="mb-3 text-slate-500">{sel.phone} · lifetime {mn(hist(sel).filter(h=>!h.v).reduce((a,h)=>a+h.a,0))}</p>{hist(sel).map((h,i)=><div key={i} className="flex gap-2 border-t border-slate-400/20 py-2 text-sm"><Tag c={h.k==='Repair'?'warn':'ok'}>{h.k}</Tag><span className="flex-1">{h.x}</span><span>{new Date(h.t).toLocaleDateString()} · {mn(h.a)}</span></div>)}</>:<p className="text-slate-500">Select a customer to see every purchase and repair.</p>}</Card></div></Page>}
+import {Fragment,useState} from 'react'
+import {useDB,mn,day} from '../db'
+import {Tag,In,Page,Modal,Timeline,useUser,can} from '../ui'
+const dt=t=>t?new Date(t).toLocaleString():'—'
+const fm=(k,v)=>typeof v==='object'?JSON.stringify(v):/^(ts|date|done|soldDate|receivedDate)$/.test(k)&&typeof v==='number'?dt(v):String(v)
+const KV=({o,skip=[]})=><dl className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[10rem_1fr]">{Object.entries(o).filter(([k,v])=>v!==undefined&&v!==null&&v!==''&&!skip.includes(k)).map(([k,v])=><Fragment key={k}><dt className="text-slate-500">{k}</dt><dd className="mb-1.5 break-words font-medium sm:mb-0">{fm(k,v)}</dd></Fragment>)}</dl>
+const Sec=({t,children})=><section><h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{t}</h3>{children}</section>
+const None=()=><p className="text-sm text-slate-500">None recorded.</p>
+export default function Crm(){const d=useDB(),u=useUser(),pf=can(u,'profit'),[q,setQ]=useState(''),[sel,setSel]=useState(null),[v,setV]=useState(null)
+ const L=d.cust.filter(c=>(c.name+c.phone).toLowerCase().includes(q.toLowerCase())),sales=c=>d.sale.filter(s=>s.custId===c.id).sort((a,b)=>b.date-a.date),reps=c=>d.ticket.filter(t=>t.custId===c.id).sort((a,b)=>b.date-a.date)
+ const life=c=>sales(c).filter(s=>!s.void).reduce((a,s)=>a+s.total,0)+reps(c).reduce((a,t)=>a+(+t.cost||0),0)
+ const Cl=({a})=>a.length?a.map(c=><div key={c.id} className="break-words text-sm">{c.code} · {c.status} · {c.issue}{c.supplier&&` · supplier ${c.supplier} ${c.sref||''}`}</div>):<None/>
+ const cs=c=>{const S=sales(c),R=reps(c),sn=S.flatMap(s=>s.lines.map(l=>l.serial)).filter(Boolean),em=R.find(t=>t.email)
+  return <Modal title={c.name||'Customer'} onClose={()=>setSel(null)}>
+   <Sec t="Contact and summary"><KV o={{Name:c.name,Phone:c.phone,Email:em&&em.email,'Customer ID':c.id,'Last updated':dt(c.ts),'Lifetime spend':mn(life(c)),Purchases:S.length,Repairs:R.length,'Open repairs':R.filter(t=>t.status!=='Delivered').length}}/></Sec>
+   <Sec t={`Purchases (${S.length})`}>{S.length?<div className="overflow-x-auto"><table><tbody>{S.map(s=><tr key={s.id} onClick={()=>setV({k:'sale',x:s})} className="cursor-pointer hover:bg-orange-500/10"><td className="font-mono">{s.code}<br/><span className="text-xs text-slate-500">{new Date(s.date).toLocaleDateString()}</span></td><td>{s.lines.map((l,i)=><button key={i} onClick={e=>{e.stopPropagation();setV({k:'item',x:l,s})}} className="mb-1 mr-1 block rounded-full bg-slate-500/10 px-2.5 py-0.5 text-left text-xs hover:bg-orange-500/20">{l.name}{(l.serial||l.imei)&&` · ${l.serial||l.imei}`}</button>)}</td><td className="whitespace-nowrap">{mn(s.total)}</td><td>{s.void&&<Tag c="bad">Refunded</Tag>}</td></tr>)}</tbody></table></div>:<None/>}</Sec>
+   <Sec t={`Repairs (${R.length})`}>{R.length?<div className="overflow-x-auto"><table><tbody>{R.map(t=><tr key={t.id} onClick={()=>setV({k:'ticket',x:t})} className="cursor-pointer hover:bg-orange-500/10"><td className="font-mono">{t.code}<br/><span className="text-xs text-slate-500">{new Date(t.date).toLocaleDateString()}</span></td><td>{t.device} {t.imei}</td><td><Tag>{t.status}</Tag></td><td className="whitespace-nowrap">{mn(t.cost)}</td></tr>)}</tbody></table></div>:<None/>}</Sec>
+   <Sec t="Warranty claims"><Cl a={d.claim.filter(x=>sn.includes(x.serial))}/></Sec><Sec t="Full customer record"><KV o={c}/></Sec></Modal>}
+ const dv=()=>{const{k,x,s}=v,close=()=>setV(null)
+  if(k==='ticket'){const tn=d.notif.filter(n=>n.ticket===x.code);return <Modal z={60} title={`Repair ${x.code}`} onClose={close}>
+   <Sec t="Status and timeline"><Timeline status={x.status}/><div className="mt-3 space-y-0.5 text-sm">{(x.hist||[]).map((h,i)=><div key={i}>{h.s} — {dt(h.t)}</div>)}{!(x.hist||[]).length&&<None/>}</div></Sec>
+   <Sec t="Customer"><KV o={{Name:x.name,Phone:x.phone,Email:x.email,'Customer ID':x.custId}}/></Sec>
+   <Sec t="Device and intake"><KV o={{'Device type':x.dtype,Device:x.device,'IMEI / serial':x.imei,'Reported problem':x.issue,'Condition accepted by customer':x.ack?'Yes':'No',...Object.fromEntries(Object.entries(x.chk||{}).map(([a,b])=>['Intake: '+a,b]))}}/></Sec>
+   <Sec t="Work and money"><KV o={{'Technician notes':x.work,'Repair price':mn(x.cost),...(pf?{'Parts cost':mn(x.pcost),Profit:mn((x.cost||0)-(x.pcost||0))}:{}),'Warranty (days)':x.war||0,'Warranty until':x.status==='Delivered'&&x.war>0?day(x.done+x.war*864e5):'None','Ticket opened':dt(x.date),'Ready / delivered':dt(x.done)}}/></Sec>
+   <Sec t="Telegram messages">{tn.length?tn.map(n=><div key={n.id} className="break-words text-sm">📨 {dt(n.ts)}: {n.text}</div>):<None/>}</Sec>
+   <Sec t="Full record"><KV o={x} skip={pf?[]:['pcost']}/></Sec></Modal>}
+  if(k==='sale'){const sub=x.lines.reduce((a,l)=>a+l.price*l.q,0),cg=x.lines.reduce((a,l)=>a+(l.cost||0)*l.q,0);return <Modal z={60} title={`Receipt ${x.code}`} onClose={close}>
+   <Sec t="Receipt"><KV o={{Receipt:x.code,Date:dt(x.date),Customer:x.name,Phone:x.phone,'Customer ID':x.custId,Payment:x.pay,Status:x.void?'Refunded':'Completed'}}/></Sec>
+   <Sec t="Items (tap one for full details)"><div className="overflow-x-auto"><table><thead><tr><th>Item</th><th>IMEI / SN</th><th>Qty</th><th>Price</th><th>Warranty</th></tr></thead><tbody>{x.lines.map((l,i)=><tr key={i} onClick={()=>setV({k:'item',x:l,s:x})} className="cursor-pointer hover:bg-orange-500/10"><td>{l.name}{l.tag&&<span className="block font-mono text-xs text-slate-500">{l.tag}</span>}</td><td className="font-mono text-xs">{l.serial||l.imei}</td><td>{l.q}</td><td className="whitespace-nowrap">{mn(l.price*l.q)}</td><td className="whitespace-nowrap">{l.until||'None'}</td></tr>)}</tbody></table></div></Sec>
+   <Sec t="Financial breakdown"><KV o={{Subtotal:mn(sub),Discount:mn(x.disc),Total:mn(x.total),Payment:x.pay,...(pf?{'Cost of goods':mn(cg),Profit:mn(x.total-cg)}:{})}}/></Sec>
+   <Sec t="Warranty claims"><Cl a={d.claim.filter(c=>c.saleId===x.id)}/></Sec><Sec t="Full record"><KV o={x} skip={['lines']}/></Sec></Modal>}
+  const un=x.serial&&d.unit.find(y=>y.serial===x.serial),it=d.item.find(i=>i.id===x.itemId),hc=pf?[]:['cost'];return <Modal z={60} title={x.name} onClose={close}>
+   {it&&it.img&&<img src={it.img} alt="" className="h-40 w-full rounded-xl object-cover"/>}
+   <Sec t="Sold item"><KV o={{Item:x.name,'IMEI / serial':x.serial||x.imei,'Stock tag':x.tag,Quantity:x.q,'Listed price':mn(x.base),'Sold price':mn(x.price),'Line total':mn(x.price*x.q),'Warranty (days)':x.war||0,'Warranty until':x.until||'None',...(pf?{'Unit cost':mn(x.cost)}:{})}}/></Sec>
+   {un&&<Sec t="Stock unit"><KV o={un} skip={hc}/></Sec>}{it&&<Sec t="Catalogue item"><KV o={it} skip={['img',...hc]}/></Sec>}
+   <Sec t="Receipt"><KV o={{Receipt:s.code,Date:dt(s.date),Customer:s.name,Phone:s.phone,Payment:s.pay}}/></Sec>
+   <Sec t="Warranty claims"><Cl a={d.claim.filter(c=>x.serial&&c.serial===x.serial)}/></Sec><Sec t="Full line record"><KV o={x} skip={hc}/></Sec></Modal>}
+ return <Page title="Customers"><In label="Search name or phone" value={q} onChange={e=>setQ(e.target.value)}/>
+  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{L.map(c=><button key={c.id} onClick={()=>setSel(c)} className="rounded-2xl border border-white/30 bg-white/60 p-4 text-left shadow transition hover:-translate-y-0.5 hover:border-orange-500 active:scale-[.98] dark:border-white/10 dark:bg-white/5"><b className="block truncate">{c.name||'(no name)'}</b><span className="text-sm text-slate-500">{c.phone}</span><div className="mt-2 flex flex-wrap gap-1"><Tag>{sales(c).length} purchases</Tag><Tag>{reps(c).length} repairs</Tag><Tag c="ok">{mn(life(c))}</Tag></div></button>)}</div>
+  {!L.length&&<p className="text-slate-500">No customers yet. They are added when you make a sale or a ticket with a phone number.</p>}{sel&&cs(sel)}{v&&dv()}</Page>}

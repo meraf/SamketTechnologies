@@ -1,6 +1,4 @@
+.env
+data
 node_modules
 dist
-data
-data.json
-.env
-npm

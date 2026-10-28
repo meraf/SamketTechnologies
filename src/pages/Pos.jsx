@@ -5,13 +5,13 @@ const E={n:'',p:'',d:0,m:'Cash'}
 export default function Pos(){const d=useDB(),[q,setQ]=useState(''),[cart,setCart]=useState([]),[c,setC]=useState(E),[pick,setPick]=useState(null),[done,setDone]=useState(null)
  const items=d.item.filter(i=>(i.name+i.cat).toLowerCase().includes(q.toLowerCase()))
  const free=i=>d.unit.filter(u=>u.itemId===i.id&&u.status==='in_stock'&&!cart.some(l=>l.serial===u.serial))
- const add=(i,u)=>{setCart([...cart,{k:Math.random(),itemId:i.id,name:i.name,serial:u&&u.serial,cost:u?u.cost:i.cost,base:i.price,price:i.price,war:i.war||0,q:1,imei:''}]);setPick(null)}
+ const add=(i,u)=>{setCart([...cart,{k:Math.random(),itemId:i.id,name:i.name,serial:u&&u.serial,cost:u?u.cost:i.cost,base:i.price,price:i.price,war:i.war||0,q:1,imei:'',tag:u&&u.tag}]);setPick(null)}
  const click=i=>i.ser?setPick(i):((stock(d,i)<=0&&!confirm('No stock recorded. Add anyway?'))||add(i))
  const scan=s=>{const u=d.unit.find(x=>x.serial===s&&x.status==='in_stock');u?add(d.item.find(i=>i.id===u.itemId),u):alert('That serial is not in stock.')}
  const up=(k,p)=>setCart(cart.map(l=>l.k===k?{...l,...p}:l))
  const total=Math.max(0,cart.reduce((a,l)=>a+l.price*l.q,0)-(+c.d||0))
  const finish=async()=>{const cid=await upCust(c.n,c.p),L=cart.map(l=>({...l,until:l.war>0?addD(l.war):''}))
-  const s=await save('sale',{code:code('RC'),custId:cid,name:c.n,phone:c.p,lines:L,total,disc:+c.d||0,pay:c.m,date:Date.now()})
+  const s=await save('sale',{code:await code('SL'),custId:cid,name:c.n,phone:c.p,lines:L,total,disc:+c.d||0,pay:c.m,date:Date.now()})
   for(const l of L)if(l.serial){const u=d.unit.find(x=>x.serial===l.serial);await save('unit',{...u,status:'sold',soldDate:Date.now(),saleId:s.id,until:l.until})}else await save('move',{item:l.itemId,q:-l.q,ref:s.id})
   setCart([]);setC(E);setDone(s)}
  return <Page title="Sell"><div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]"><div className="space-y-4"><Card><Scan onScan={scan}/></Card><In label="Search items" value={q} onChange={e=>setQ(e.target.value)}/>

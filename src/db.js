@@ -1,7 +1,8 @@
 import {useEffect,useState} from 'react'
 export const dev=localStorage.dev||(localStorage.dev=Math.random().toString(36).slice(2,6))
 export const uid=()=>dev+Date.now().toString(36)+Math.random().toString(36).slice(2,6)
-export const code=p=>{localStorage.n=(+localStorage.n||0)+1;return p+'-'+dev.toUpperCase()+'-'+String(localStorage.n).padStart(4,'0')}
+export const PFX={Phones:'P',Laptops:'L',Desktops:'D',Modems:'M',Parts:'PT',Accessories:'AC'}
+export const code=async p=>{const re=new RegExp('^'+p+'-(\\d+)$');let u=0;for(const x of await everything()){const m=String(x.code||x.tag||'').match(re);if(m)u=Math.max(u,+m[1])}const n=Math.max(+localStorage['no_'+p]||0,u)+1;localStorage['no_'+p]=n;return p+'-'+n}
 export const mn=n=>(+n||0).toLocaleString()+' ETB'
 export const day=(t=Date.now())=>new Date(t).toISOString().slice(0,10)
 export const addD=n=>day(Date.now()+n*864e5)
