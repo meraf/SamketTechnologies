@@ -1,0 +1,8 @@
+import {useState} from 'react'
+import {useDB,mn} from '../db'
+import {Card,Tag,In,Page} from '../ui'
+export default function Crm(){const d=useDB(),[q,setQ]=useState(''),[sel,setSel]=useState(null)
+ const L=d.cust.filter(c=>(c.name+c.phone).toLowerCase().includes(q.toLowerCase()))
+ const hist=c=>[...d.sale.filter(s=>s.custId===c.id).map(s=>({t:s.date,k:'Purchase',x:`${s.code}: ${s.lines.map(l=>l.name+(l.serial?' (S/N '+l.serial+')':'')).join(', ')}`,a:s.total,v:s.void})),...d.ticket.filter(t=>t.custId===c.id).map(t=>({t:t.date,k:'Repair',x:`${t.code}: ${t.device||''} ${t.issue||''} [${t.status}]`,a:t.cost}))].sort((a,b)=>b.t-a.t)
+ return <Page title="Customers"><In label="Search name or phone" value={q} onChange={e=>setQ(e.target.value)}/><div className="grid gap-4 lg:grid-cols-[1fr_1.5fr]"><div className="space-y-2">{L.map(c=><button key={c.id} onClick={()=>setSel(c)} className={`block w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${sel?.id===c.id?'border-orange-500 bg-orange-500/10':'border-white/30 bg-white/60 dark:border-white/10 dark:bg-white/5'}`}><b>{c.name||'(no name)'}</b><div className="text-sm text-slate-500">{c.phone}</div></button>)}</div>
+  <Card>{sel?<><h2 className="text-xl font-bold">{sel.name}</h2><p className="mb-3 text-slate-500">{sel.phone} · lifetime {mn(hist(sel).filter(h=>!h.v).reduce((a,h)=>a+h.a,0))}</p>{hist(sel).map((h,i)=><div key={i} className="flex gap-2 border-t border-slate-400/20 py-2 text-sm"><Tag c={h.k==='Repair'?'warn':'ok'}>{h.k}</Tag><span className="flex-1">{h.x}</span><span>{new Date(h.t).toLocaleDateString()} · {mn(h.a)}</span></div>)}</>:<p className="text-slate-500">Select a customer to see every purchase and repair.</p>}</Card></div></Page>}

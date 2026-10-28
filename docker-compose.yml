@@ -2,6 +2,7 @@ services:
   app:
     build: .
     restart: always
+    env_file: .env
     environment:
       - SYNC_KEY=${SYNC_KEY:-change-me}
     volumes: ["./data:/data"]

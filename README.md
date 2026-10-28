@@ -1,19 +1,11 @@
-# Samket Technologies
-Storefront (`/`) + shop app (`/admin.html`, PIN 1234, installable on any phone/PC as an app).
+# Samket Technologies (Vite + React + Tailwind)
+**Dev:** `npm install && node server.js` (terminal 1), `npm run dev` (terminal 2). **Production:** `npm run build && SYNC_KEY=secret node server.js`, or `SYNC_KEY=secret docker compose up -d` (set your domain in `Caddyfile`).
+Staff PINs (change in Staff > Sync): cashier 1111, technician 2222, master 9999. Sync key default `samket`.
 
-**Run:** `node server.js` (Node 18+), open http://localhost:3000. Set `SYNC_KEY` and change the PIN in Settings.
-**Other devices:** host this folder on an HTTPS server (VPS + Caddy, or Cloudflare Tunnel). Service workers need HTTPS except on localhost. In Settings on each device, set the server URL and key.
+**Structure:** `src/db.js` (IndexedDB, sync, conflicts, stock/units, notifications) · `src/ui.jsx` (components, roles, tracker timeline, scanner, print gate, thermal slip) · `src/App.jsx` (router, layouts, theme, sync indicator, login) · `src/pages/` Store, Track, Pos, Inventory, Repairs, Crm, Claims, Cash, Reports, Sync · `server.js` (sync API, public catalogue, ticket tracking) · `public/sw.js` (offline cache).
+**Data:** serialized units are `unit` records (`itemId, serial, status, cost, soldDate`); a sale locks the unit and sets its warranty date. Two devices editing the same record trigger the review screen (Staff > Sync). Camera scanning uses the browser BarcodeDetector (Chrome/Android); USB scanners work as keyboards.
 
-**Offline & conflicts:** every device keeps a full IndexedDB copy and works with no internet. Stock is the sum of append-only movements (sales/receipts), so two offline devices selling the same item merge correctly; edits to items/tickets are last-write-wins per record; ticket and receipt codes include the device ID so they never clash. Sync runs every 20 s and on reconnect.
-
-**Edit:** shop phone, address, hours and testimonials at the top of `public/index.html`. Data lives in `data.json` (back it up).
-
-**Also included:** item photos (shown on the storefront), sales history with profit, receipt search and per-item warranty status, refunds that return items to stock, discount and payment method on sales, low-stock banner on every tab, delete items, and JSON backup/restore (Settings).
-
-## Deploy on a server (HTTPS, automatic certificate)
-1. Get a VPS with Docker and point your domain's DNS A record to it.
-2. Put your domain in `Caddyfile`, then run: `SYNC_KEY=your-secret docker compose up -d`
-3. Open `https://yourdomain.com`, go to Staff, and in Settings set the same sync key and a new PIN on every device.
-Data is kept in `./data/data.json`; back it up. No Docker: run `DATA_DIR=/var/samket SYNC_KEY=... node server.js` behind any HTTPS proxy (nginx, Caddy), or on Render/Railway/Fly with a persistent disk.
-
-Warranty is in days everywhere and defaults to 0. Customers open tickets with name, phone, device type and issue; a password is optional and turns their phone into an account (My tickets).
+## Update notes
+Roles: **admin** (PIN 9999) and **cashier** (PIN 1111); staff sign in only at `/staff`. Customer pages: `/`, `/shop`, `/contact`, `/repair` (repair portal), `/purchases` (sold-item portal). Staff repairs: `/staff/repairs/new` and `/staff/repairs` (tap steps 1-5; step 4 asks price and parts cost, step 5 asks warranty days then offers print).
+**Printing:** default paper is A4 with a 3x3 grid of 68x96 mm cells from the top-left corner; pick the cell (1-9) so a partly used sheet can be reused. Each slip has a tear-off tag for the device. 58/80 mm thermal also available.
+**Telegram:** copy `.env.example` to `.env`. Messaging uses the Bot API: create a bot with @BotFather, set `TG_BOT_TOKEN` and `TG_BOT_USERNAME` (and `TG_STAFF_CHAT` for new-request alerts). Customers tap "Get updates on Telegram" on their ticket to link their chat. `TG_API_ID` / `TG_API_HASH` are kept server-side only; they are for user-account (MTProto) clients and are not needed for bot messages.
