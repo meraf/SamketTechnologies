@@ -46,6 +46,7 @@ export function useSync(){const [s,setS]=useState({on:navigator.onLine,p:0,c:0,o
  useEffect(()=>{f();['online','offline'].forEach(e=>addEventListener(e,f));bus.addEventListener('c',f);return()=>{['online','offline'].forEach(e=>removeEventListener(e,f));bus.removeEventListener('c',f)}},[]);return s}
 export const stock=(d,i)=>i.ser?d.unit.filter(u=>u.itemId===i.id&&u.status==='in_stock').length:d.move.filter(m=>m.item===i.id).reduce((a,m)=>a+m.q,0)
 export const upCust=async(name,phone)=>{const p=normPhone(phone);if(!p)return'';const ex=(await everything()).find(x=>x.type==='cust'&&!x.del&&normPhone(x.phone)===p);const id=ex?ex.id:custId(p);await save('cust',{...(ex||{}),id,name:name||ex?.name||'',phone:ex?ex.phone:p});return id}
+export const alertStaff=text=>queue({url:'/api/staff-alert',method:'POST',auth:'key',body:{text}}) // Telegram message to the staff chat (queued if offline)
 export const notify=async(t,status)=>{const text=status==='Unfixed'?`Samket: we could not repair your ${t.device||'device'} (${t.code}). Please collect it from the shop.`:`Samket: your ${t.device||'device'} (${t.code}) is now "${status}".`
  await queue({url:'/api/notify',method:'POST',auth:'key',body:{code:t.code,text}}) // queued if offline, sent when the connection returns
  return save('notif',{ticket:t.code,to:t.code,channel:'Telegram',text})}

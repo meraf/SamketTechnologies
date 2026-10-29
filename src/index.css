@@ -5,3 +5,5 @@ img,video,iframe,svg{max-width:100%}
 .grid>*,.flex>*{min-width:0}
 input,select,textarea{min-width:0;max-width:100%}
 @media print{body *{visibility:hidden}#sheet,#sheet *{visibility:visible}#sheet{position:fixed;left:0;top:0;background:#fff}}
+@keyframes pop{0%{transform:scale(.3);opacity:0}70%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
+.pop{animation:pop .45s ease-out}

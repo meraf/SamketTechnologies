@@ -1,5 +1,5 @@
 import {useState} from 'react'
-import {useDB,save,stock,code,mn,addD,upCust,normPhone} from '../db'
+import {useDB,save,stock,code,mn,addD,upCust,normPhone,alertStaff} from '../db'
 import {Card,Btn,In,Sel,Tag,Scan,Gate,saleSlip,Page} from '../ui'
 const E={n:'',p:'',d:0,m:'Cash'}
 // One cart, one receipt. A cart line is either
@@ -26,6 +26,7 @@ export default function Pos(){const d=useDB(),[q,setQ]=useState(''),[cart,setCar
   try{const cid=await upCust(c.n,c.p),L=cart.map(({imeis,...l})=>{const im=l.serial?[]:imeis.map(x=>x.trim()).filter(Boolean);return {...l,imeis:im,imei:im.join(', '),until:l.war>0?addD(l.war):''}})
    const s=await save('sale',{code:await code('SL'),custId:cid,name:c.n,phone:c.p,lines:L,total,disc:+c.d||0,pay:c.m,date:Date.now()})
    for(const l of L)if(l.serial){const u=d.unit.find(x=>x.serial===l.serial);await save('unit',{...u,status:'sold',soldDate:Date.now(),saleId:s.id,until:l.until})}else await save('move',{item:l.itemId,q:-l.q,ref:s.id})
+   alertStaff(`Sale ${s.code}: ${mn(total)} (${c.m}) · ${L.reduce((a,l)=>a+l.q,0)} item(s)${c.n?' · '+c.n:''}`)
    setCart([]);setC(E);setDone(s)}finally{setBusy(false)}}
  return <Page title="Sell"><div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]"><div className="space-y-4"><Card><Scan onScan={scan}/></Card><In label="Search items" value={q} onChange={e=>setQ(e.target.value)}/>
   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{items.map(i=>{const n=stock(d,i);return <button key={i.id} onClick={()=>click(i)} className="rounded-2xl border border-white/30 bg-white/60 p-4 text-left shadow transition hover:-translate-y-1 hover:shadow-xl active:scale-95 dark:border-white/10 dark:bg-white/5"><b className="block">{i.name}</b><span className="text-sm text-slate-500">{mn(i.price)}</span><div className="mt-1 flex gap-1"><Tag c={n<=(i.min||0)?'bad':'ok'}>{n} in stock</Tag>{i.ser&&<Tag>S/N</Tag>}</div></button>})}</div></div>
@@ -38,6 +39,6 @@ export default function Pos(){const d=useDB(),[q,setQ]=useState(''),[cart,setCar
    {!!dup.length&&<p className="rounded-xl bg-red-500/10 p-2 text-sm text-red-600 dark:text-red-400">Duplicate serial number: {[...new Set(dup)].join(', ')}</p>}
    <In label="Phone" type="tel" value={c.p} onChange={e=>setPhone(e.target.value)}/>{known&&<p className="-mt-1 text-xs text-emerald-600 dark:text-emerald-400">Existing customer ({known.name||'no name'}): this sale is added to their history.</p>}<In label="Customer" value={c.n} onChange={e=>setC({...c,n:e.target.value})}/>
    <div className="grid grid-cols-2 gap-2"><In label="Discount" type="number" min="0" value={c.d||''} onChange={e=>setC({...c,d:e.target.value})}/><Sel label="Payment" o={['Cash','Bank transfer','Telebirr','CBE Birr']} value={c.m} onChange={e=>setC({...c,m:e.target.value})}/></div>
-   <div className="text-3xl font-extrabold tracking-tight">{mn(total)}</div><Btn className="w-full" disabled={!cart.length||!!dup.length||busy} onClick={finish}>Complete sale · one receipt{units>1?` for ${units} items`:''}</Btn></Card></div>
+   <div className="text-3xl font-extrabold tracking-tight">{mn(total)}</div><Btn className="w-full" disabled={!cart.length||!!dup.length||busy} onClick={finish}>Checkout{units>1?` · ${units} items`:''}</Btn></Card></div>
   {pick&&<div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm"><Card className="max-h-[80vh] w-full max-w-sm overflow-auto !bg-white dark:!bg-slate-900"><h3 className="mb-1 font-bold">Pick units of {pick.name}</h3><p className="mb-3 text-xs text-slate-500">Tick every unit being sold. Each keeps its own serial number and warranty.</p>{free(pick).map(u=>{const on=sel.includes(u.id);return <label key={u.id} className={`mb-2 flex cursor-pointer items-center gap-3 rounded-xl border p-3 font-mono text-sm transition ${on?'border-orange-500 bg-orange-500/10':'border-slate-400/30 hover:bg-orange-500/5'}`}><input type="checkbox" checked={on} onChange={()=>setSel(on?sel.filter(x=>x!==u.id):[...sel,u.id])}/>{u.serial}</label>})}{!free(pick).length&&<p className="text-slate-500">No units in stock.</p>}<div className="mt-3 flex gap-2"><Btn disabled={!sel.length} onClick={()=>addMany(pick,free(pick).filter(u=>sel.includes(u.id)))}>Add {sel.length||''} to cart</Btn><Btn v="g" onClick={()=>setPick(null)}>Cancel</Btn></div></Card></div>}
-  {done&&<Gate slip={saleSlip(done)} onClose={()=>setDone(null)}/>}</Page>}
+  {done&&<Gate title="Sale complete" sub={`${done.code} · ${mn(done.total)}`} slip={saleSlip(done)} onClose={()=>setDone(null)}/>}</Page>}

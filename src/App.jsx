@@ -1,6 +1,6 @@
-import {useState,useEffect} from 'react'
+import {Component,useState,useEffect} from 'react'
 import {BrowserRouter,Routes,Route,Link,NavLink,Outlet,Navigate,useLocation,useNavigate} from 'react-router-dom'
-import {useSync,setCfg,sync} from './db'
+import {useSync,sync} from './db'
 import {applyManifest,InstallButton} from './pwa'
 import {UserCtx,can,Card,Btn,Sel,In} from './ui'
 import {S} from './catalogue'
@@ -45,9 +45,8 @@ const sessionUser=()=>JSON.parse(sessionStorage.u||'null')
 function StaffLogin(){const [r,setR]=useState('cashier'),[p,setP]=useState(''),nav=useNavigate(),loc=useLocation()
  if(sessionUser())return <Navigate to={loc.state?.from||'/staff/pos'} replace/>
  const go=()=>p===(localStorage['pin_'+r]||PINS[r])?(sessionStorage.u=JSON.stringify({role:r}),sync(),nav(loc.state?.from||'/staff/pos',{replace:true})):setP('')
- const set=k=>({defaultValue:localStorage[k]||'',onChange:e=>setCfg(k,e.target.value)})
  return <Bg><Bar items={[]} home="/staff/login" right={<><InstallButton label="Install Staff app"/><Theme/></>}/><div className="grid min-h-[70vh] place-items-center p-3"><Card className="w-full max-w-sm"><h1 className="mb-4 text-2xl font-extrabold">Staff sign in</h1><Sel label="Role" o={Object.keys(PINS)} value={r} onChange={e=>setR(e.target.value)}/><div className="mt-3"><In label="PIN" type="password" inputMode="numeric" value={p} onChange={e=>setP(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()}/></div><Btn className="mt-4 w-full" onClick={go}>Unlock</Btn>
-  <details className="mt-4 text-sm"><summary className="cursor-pointer font-semibold text-slate-500">Device settings</summary><div className="mt-2 space-y-3"><In label="Server URL (blank = this site)" {...set('surl')}/><In label="Sync key (needed once per device if the owner changed it)" type="password" {...set('skey')}/></div></details></Card></div></Bg>}
+</Card></div></Bg>}
 const sn=[['pos','Sell'],['inventory','Stock','stock'],['repairs','Repairs'],['repairs/new','New ticket','newticket'],['crm','Customers'],['claims','Claims'],['cash','Cash'],['reports','Reports'],['sync','Sync']]
 function Staff(){const [u,setU]=useState(sessionUser),s=useSync(),loc=useLocation()
  if(!u)return <Navigate to="/staff/login" replace state={{from:loc.pathname}}/>
@@ -55,6 +54,12 @@ function Staff(){const [u,setU]=useState(sessionUser),s=useSync(),loc=useLocatio
  // Sync runs silently in the background for everyone; only admins get the indicator and the Sync page.
  const admin=u.role==='admin'
  return <UserCtx.Provider value={u}><Bg><Bar home="/staff/pos" items={sn.filter(([a,,p])=>can(u,p||a)).map(([a,t])=>[a,t,a==='repairs'])} extra={<button className="w-full rounded-xl border border-slate-400/30 px-4 py-3 text-sm font-semibold" onClick={out}>Sign out ({u.role})</button>} right={<>{admin&&<Link to="sync" className="flex items-center gap-1.5 rounded-full bg-slate-500/10 px-2.5 py-1 text-xs font-semibold"><span className={`h-2 w-2 rounded-full ${!s.on?'bg-red-500':s.p||s.c||s.o?'animate-pulse bg-amber-500':'bg-emerald-500'}`}/><span className="hidden sm:inline">{s.on?'Online':'Offline'} · </span>{s.c?s.c+' conflicts':s.p||s.o?(s.p+s.o)+' to sync':'synced'}</Link>}<InstallButton label="Install Staff app"/><Theme/><button className="hidden text-xs text-slate-500 lg:block" onClick={out}>Exit</button></>}/><Outlet/></Bg></UserCtx.Provider>}
-export default function App(){return <BrowserRouter><ManifestSync/><Routes><Route element={<Public/>}><Route index element={<Home/>}/><Route path="shop" element={<Shop/>}/><Route path="contact" element={<Contact/>}/><Route path="repair" element={<Track/>}/><Route path="purchases" element={<Purchases/>}/><Route path="track" element={<Navigate to="/repair" replace/>}/></Route>
+// If any page crashes, show a message with a repair button instead of a blank white screen.
+class Boundary extends Component{state={e:null}
+ static getDerivedStateFromError(e){return{e}}
+ componentDidCatch(e){console.error('Samket page crashed:',e)}
+ reset=async()=>{try{localStorage.removeItem('pubc');for(const r of await navigator.serviceWorker.getRegistrations())await r.unregister();for(const k of await caches.keys())await caches.delete(k)}catch{};location.href='/'}
+ render(){return this.state.e?<div className="grid min-h-screen place-items-center p-6 text-center"><div><h1 className="text-2xl font-extrabold">Something went wrong</h1><p className="mt-2 text-slate-500">The page could not be shown. Tap the button to reset the app cache and reload.</p><button onClick={this.reset} className="mt-4 rounded-full bg-orange-500 px-5 py-2 font-semibold text-white">Reload Samket</button></div></div>:this.props.children}}
+export default function App(){return <Boundary><BrowserRouter><ManifestSync/><Routes><Route element={<Public/>}><Route index element={<Home/>}/><Route path="shop" element={<Shop/>}/><Route path="contact" element={<Contact/>}/><Route path="repair" element={<Track/>}/><Route path="purchases" element={<Purchases/>}/><Route path="track" element={<Navigate to="/repair" replace/>}/></Route>
  <Route path="staff/login" element={<StaffLogin/>}/>
- <Route path="staff" element={<Staff/>}><Route index element={<Navigate to="pos" replace/>}/><Route path="pos" element={<Pos/>}/><Route path="inventory" element={<Inventory/>}/><Route path="repairs" element={<Repairs/>}/><Route path="repairs/new" element={<NewTicket/>}/><Route path="crm" element={<Crm/>}/><Route path="claims" element={<Claims/>}/><Route path="cash" element={<Cash/>}/><Route path="reports" element={<Reports/>}/><Route path="sync" element={<SyncPage/>}/></Route></Routes></BrowserRouter>}
+ <Route path="staff" element={<Staff/>}><Route index element={<Navigate to="pos" replace/>}/><Route path="pos" element={<Pos/>}/><Route path="inventory" element={<Inventory/>}/><Route path="repairs" element={<Repairs/>}/><Route path="repairs/new" element={<NewTicket/>}/><Route path="crm" element={<Crm/>}/><Route path="claims" element={<Claims/>}/><Route path="cash" element={<Cash/>}/><Route path="reports" element={<Reports/>}/><Route path="sync" element={<SyncPage/>}/></Route></Routes></BrowserRouter></Boundary>}
