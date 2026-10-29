@@ -37,7 +37,7 @@ export default function Repairs(){const d=useDB(),u=useUser(),pf=can(u,'profit')
   if(status!==t.status)await apply(t,STATUSES.indexOf(status),patch);else await update('ticket',t.id,patch)}
  const L=d.ticket.filter(t=>matchQ(t,q)).sort((a,b)=>b.ts-a.ts)
  return <Page title="Repair tickets" right={<Link to="/staff/repairs/new"><Btn>+ New ticket</Btn></Link>}>
-  <><In label="Search by customer name, phone number or ticket code" type="search" placeholder="e.g. Abebe, 0924598198, R-12" value={q} onChange={e=>setQ(e.target.value)}/>{q&&<p className="text-sm text-slate-500">{L.length} ticket(s) found</p>}</>
+  <><In label="Search by customer name, phone number or ticket code" type="search" placeholder="e.g. Abebe, 0924598198, SKT-9K2P8X" value={q} onChange={e=>setQ(e.target.value)}/>{q&&<p className="text-sm text-slate-500">{L.length} ticket(s) found</p>}</>
   <div className="grid gap-3 lg:grid-cols-2">{L.map(t=><Card key={t.id} className="space-y-3"><div className="flex flex-wrap items-center gap-2"><b className="font-mono">{t.code}</b><StatusTag s={t.status}/><span className="flex-1"/><span className="text-sm">{mn(t.cost)}</span></div>
    <div className="break-words text-sm text-slate-500">{t.name} · {t.phone} · {t.device} {t.imei}<br/>{t.issue}</div>{t.status===UNFIXED&&t.why&&<p className="rounded-xl bg-red-500/10 p-2 text-sm text-red-600 dark:text-red-400"><b>Not repaired:</b> {t.why}</p>}
    <Timeline status={t.status} hist={t.hist} onStep={i=>step(t,i)}/><p className="text-center text-[11px] text-slate-400">Tap a step to move the repair there. The red ✕ marks a device that could not be fixed.</p>

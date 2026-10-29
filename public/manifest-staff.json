@@ -1,15 +1,26 @@
 {
   "id": "/staff/",
-  "name": "Samket Staff",
+  "name": "Samket Technologies Staff",
   "short_name": "Samket Staff",
   "description": "Point of sale, repairs and stock for Samket staff.",
-  "start_url": "/staff/login",
+  "start_url": "/staff",
   "scope": "/staff/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "orientation": "any",
+  "background_color": "#1E293B",
+  "theme_color": "#1E293B",
   "icons": [
-    { "src": "/icon-staff.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/icon-staff.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    {
+      "src": "/icon-staff.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-staff.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
   ]
 }
