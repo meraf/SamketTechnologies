@@ -1,6 +1,8 @@
 import {useEffect,useState} from 'react'
 import {idb,bus,ping,flushOutbox,queue,pendingCount,setMeta} from './offline'
 import {normPhone} from '../lib/phone.js'
+import {DEFAULT_SYNC_KEY} from '../lib/defaults.js'
+export {DEFAULT_SYNC_KEY}
 export {normPhone}
 
 export const dev=localStorage.dev||(localStorage.dev=Math.random().toString(36).slice(2,6))
@@ -14,9 +16,9 @@ export const custId=p=>'c'+normPhone(p)
 
 // ---- settings (mirrored into IndexedDB so the service worker can use them) ----
 export const setCfg=(k,v)=>{localStorage[k]=v;if(k==='surl'||k==='skey')setMeta(k,v)}
-setMeta('surl',localStorage.surl||'');setMeta('skey',localStorage.skey||'samket')
+setMeta('surl',localStorage.surl||'');setMeta('skey',localStorage.skey||DEFAULT_SYNC_KEY)
 const base=()=>localStorage.surl||''
-const hdr=()=>({'content-type':'application/json','x-key':localStorage.skey||'samket'})
+const hdr=()=>({'content-type':'application/json','x-key':localStorage.skey||DEFAULT_SYNC_KEY})
 // Only a signed-in staff session syncs the shared database. Public visitors never download or upload records.
 const staffOn=()=>!!sessionStorage.u
 
@@ -58,7 +60,7 @@ export async function sync(){
  await flushOutbox().catch(()=>0) // queued calls (e.g. a customer's offline repair request) go out for everyone
  if(busy||!staffOn())return;busy=1 // record sync is staff-only
  try{
-  const post=async(docs,since)=>{const r=await fetch(base()+'/api/sync',{method:'POST',headers:hdr(),body:JSON.stringify({since,docs})});if(!r.ok)throw{status:r.status};return r.json()}
+  const post=async(docs,since)=>{const r=await fetch(base()+'/api/sync',{method:'POST',headers:hdr(),body:JSON.stringify({since,docs})});if(!r.ok)throw{status:r.status};const j=await r.json();if(j.newKey&&j.newKey!==(localStorage.skey||DEFAULT_SYNC_KEY))setCfg('skey',j.newKey) /* admin rotated the key: adopt it */;return j}
   // pull in pages (the server caps each response)
   let since=+localStorage.since||0
   for(;;){
@@ -90,3 +92,9 @@ export async function searchRemote(text){
  try{const r=await fetch(base()+'/api/search?q='+encodeURIComponent(String(text).trim()),{headers:hdr()});if(!r.ok)return
   for(const x of(await r.json()).docs){const l=await get(x.id);if(!l||(!l.dirty&&x.ts>l.ts))await put(x)};ping()}catch{}}
 export function useRemoteSearch(q){useEffect(()=>{const t=setTimeout(()=>searchRemote(q),350);return()=>clearTimeout(t)},[q])}
+
+/** Admin: set a new sync key on the server. Every other device adopts it automatically during its next sync. */
+export async function broadcastKey(k){k=String(k||'').trim()
+ const r=await fetch(base()+'/api/synckey',{method:'POST',headers:hdr(),body:JSON.stringify({newKey:k})})
+ if(!r.ok)throw new Error(r.status===401?'The server rejected this device\'s current key. Press "Use default key" first, then try again.':r.status===400?'The key needs at least 16 characters and no spaces.':'Server error '+r.status)
+ setCfg('skey',k);localStorage.removeItem('syncErr');ping();sync()}

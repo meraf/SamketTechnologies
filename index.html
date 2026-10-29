@@ -1,4 +1,4 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f5c46"><link rel="manifest" href="/manifest-client.json"><link rel="icon" href="/icon.svg"><title>Samket Technologies</title>
 <script>/* Pick the staff or client manifest from the URL before anything else, so Chrome's Install button installs the right app (client: "/", staff: "/staff/login"). src/pwa.jsx keeps it in sync on route changes. */(function(){var s=/^\/staff(\/|$)/.test(location.pathname);document.querySelector('link[rel=manifest]').href=s?'/manifest-staff.json':'/manifest-client.json';document.querySelector('meta[name=theme-color]').content=s?'#0f172a':'#0f5c46'})()</script>
-<script>document.documentElement.classList.toggle('dark',localStorage.theme?localStorage.theme=='dark':matchMedia('(prefers-color-scheme:dark)').matches)</script></head>
+<script>document.documentElement.classList.toggle('dark',localStorage.theme=='dark')</script></head>
 <body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>

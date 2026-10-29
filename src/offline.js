@@ -5,6 +5,7 @@
 //      meta   server URL / sync key mirrored so the service worker can replay the outbox
 //  - flushOutbox() replays the queue in order whenever a connection is available.
 import { openDB } from 'idb'
+import { DEFAULT_SYNC_KEY } from '../lib/defaults.js'
 
 export const bus = new EventTarget()
 export const ping = () => bus.dispatchEvent(new Event('c'))
@@ -46,7 +47,7 @@ export async function queue(a) {
 async function run() {
   const d = await idb()
   const surl = (await getMeta('surl')) || ''
-  const skey = (await getMeta('skey')) || 'samket'
+  const skey = (await getMeta('skey')) || DEFAULT_SYNC_KEY
   let sent = 0
   for (const a of await d.getAll('outbox')) {
     try {
