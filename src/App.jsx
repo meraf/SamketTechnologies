@@ -1,6 +1,6 @@
 import {Component,useState,useEffect} from 'react'
 import {BrowserRouter,Routes,Route,Link,NavLink,Outlet,Navigate,useLocation,useNavigate} from 'react-router-dom'
-import {useSync,sync} from './db'
+import {useSync,sync,setCfg} from './db'
 import {applyManifest,InstallButton} from './pwa'
 import {UserCtx,can,Card,Btn,Sel,In} from './ui'
 import {S} from './catalogue'
@@ -42,10 +42,10 @@ function ManifestSync(){const {pathname}=useLocation();useEffect(()=>{applyManif
 const PINS={cashier:'1111',admin:'9999'}
 const sessionUser=()=>JSON.parse(sessionStorage.u||'null')
 // /staff/login is the staff PWA's start_url
-function StaffLogin(){const [r,setR]=useState('cashier'),[p,setP]=useState(''),nav=useNavigate(),loc=useLocation()
+function StaffLogin(){const [r,setR]=useState('cashier'),[p,setP]=useState(''),[k,setK]=useState(''),nav=useNavigate(),loc=useLocation()
  if(sessionUser())return <Navigate to={loc.state?.from||'/staff/pos'} replace/>
- const go=()=>p===(localStorage['pin_'+r]||PINS[r])?(sessionStorage.u=JSON.stringify({role:r}),sync(),nav(loc.state?.from||'/staff/pos',{replace:true})):setP('')
- return <Bg><Bar items={[]} home="/staff/login" right={<><InstallButton label="Install Staff app"/><Theme/></>}/><div className="grid min-h-[70vh] place-items-center p-3"><Card className="w-full max-w-sm"><h1 className="mb-4 text-2xl font-extrabold">Staff sign in</h1><Sel label="Role" o={Object.keys(PINS)} value={r} onChange={e=>setR(e.target.value)}/><div className="mt-3"><In label="PIN" type="password" inputMode="numeric" value={p} onChange={e=>setP(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()}/></div><Btn className="mt-4 w-full" onClick={go}>Unlock</Btn>
+ const go=()=>p===(localStorage['pin_'+r]||PINS[r])?(k.trim()&&setCfg('skey',k.trim()),sessionStorage.u=JSON.stringify({role:r}),sync(),nav(loc.state?.from||'/staff/pos',{replace:true})):setP('')
+ return <Bg><Bar items={[]} home="/staff/login" right={<><InstallButton label="Install Staff app"/><Theme/></>}/><div className="grid min-h-[70vh] place-items-center p-3"><Card className="w-full max-w-sm"><h1 className="mb-4 text-2xl font-extrabold">Staff sign in</h1><Sel label="Role" o={Object.keys(PINS)} value={r} onChange={e=>setR(e.target.value)}/><div className="mt-3"><In label="PIN" type="password" inputMode="numeric" value={p} onChange={e=>setP(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()}/></div>{(!localStorage.skey||localStorage.syncErr==='401')&&<div className="mt-3"><In label="Shop sync key (needed once on this device)" type="password" value={k} onChange={e=>setK(e.target.value)}/><p className="mt-1 text-xs text-slate-500">Same value as SYNC_KEY in Vercel. Without it this phone cannot load or save shared data.</p></div>}<Btn className="mt-4 w-full" onClick={go}>Unlock</Btn>
 </Card></div></Bg>}
 const sn=[['pos','Sell'],['inventory','Stock','stock'],['repairs','Repairs'],['repairs/new','New ticket','newticket'],['crm','Customers'],['claims','Claims'],['cash','Cash'],['reports','Reports'],['sync','Sync']]
 function Staff(){const [u,setU]=useState(sessionUser),s=useSync(),loc=useLocation()
@@ -53,7 +53,7 @@ function Staff(){const [u,setU]=useState(sessionUser),s=useSync(),loc=useLocatio
  const out=()=>{sessionStorage.removeItem('u');setU(null)}
  // Sync runs silently in the background for everyone; only admins get the indicator and the Sync page.
  const admin=u.role==='admin'
- return <UserCtx.Provider value={u}><Bg><Bar home="/staff/pos" items={sn.filter(([a,,p])=>can(u,p||a)).map(([a,t])=>[a,t,a==='repairs'])} extra={<button className="w-full rounded-xl border border-slate-400/30 px-4 py-3 text-sm font-semibold" onClick={out}>Sign out ({u.role})</button>} right={<>{admin&&<Link to="sync" className="flex items-center gap-1.5 rounded-full bg-slate-500/10 px-2.5 py-1 text-xs font-semibold"><span className={`h-2 w-2 rounded-full ${!s.on?'bg-red-500':s.p||s.c||s.o?'animate-pulse bg-amber-500':'bg-emerald-500'}`}/><span className="hidden sm:inline">{s.on?'Online':'Offline'} · </span>{s.c?s.c+' conflicts':s.p||s.o?(s.p+s.o)+' to sync':'synced'}</Link>}<InstallButton label="Install Staff app"/><Theme/><button className="hidden text-xs text-slate-500 lg:block" onClick={out}>Exit</button></>}/><Outlet/></Bg></UserCtx.Provider>}
+ return <UserCtx.Provider value={u}><Bg><Bar home="/staff/pos" items={sn.filter(([a,,p])=>can(u,p||a)).map(([a,t])=>[a,t,a==='repairs'])} extra={<button className="w-full rounded-xl border border-slate-400/30 px-4 py-3 text-sm font-semibold" onClick={out}>Sign out ({u.role})</button>} right={<><Link to={admin?'sync':'#'} onClick={e=>{if(!admin){e.preventDefault();sync()}}} className="flex items-center gap-1.5 rounded-full bg-slate-500/10 px-2.5 py-1 text-xs font-semibold"><span className={`h-2 w-2 rounded-full ${!s.on||s.e?'bg-red-500':s.p||s.c||s.o?'animate-pulse bg-amber-500':'bg-emerald-500'}`}/><span className="hidden sm:inline">{s.on?'Online':'Offline'} · </span>{s.e?({'401':'Wrong sync key','net':'Cannot reach server'}[s.e]||'Server error '+s.e):s.c?s.c+' conflicts':s.p||s.o?(s.p+s.o)+' to sync':'synced'}</Link><InstallButton label="Install Staff app"/><Theme/><button className="hidden text-xs text-slate-500 lg:block" onClick={out}>Exit</button></>}/><Outlet/></Bg></UserCtx.Provider>}
 // If any page crashes, show a message with a repair button instead of a blank white screen.
 class Boundary extends Component{state={e:null}
  static getDerivedStateFromError(e){return{e}}

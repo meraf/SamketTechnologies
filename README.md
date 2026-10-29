@@ -55,3 +55,6 @@ Camera scanning uses the browser BarcodeDetector (Chrome/Android); USB scanners 
 - PINs are still checked in the browser (as before). For real protection add server-side staff login.
 - Customers who forget their password need a staff reset (delete their row in the `users` table).
 - Never commit `.env` or `data.json` (customer data). Both are in `.gitignore`.
+
+## Why a second phone showed no data (fixed)
+Staff devices sync through `/api/sync`, which needs the same key as `SYNC_KEY` in Vercel. A device without that key got 401 and the app hid the error. Now the sign-in screen asks for the key once per device, the header shows "Wrong sync key" or "Cannot reach server" for every role, and Staff > Sync has "Re-download all".

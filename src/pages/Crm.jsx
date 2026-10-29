@@ -1,13 +1,13 @@
 import {Fragment,useState} from 'react'
-import {useDB,mn,day,update,upCust,normPhone} from '../db'
+import {matchQ,useRemoteSearch,useDB,mn,day,update,upCust,normPhone} from '../db'
 import {Tag,In,Btn,Page,Modal,Timeline,StatusTag,EditModal,useUser,can} from '../ui'
 const dt=t=>t?new Date(t).toLocaleString():'—'
 const fm=(k,v)=>typeof v==='object'?JSON.stringify(v):/^(ts|date|done|soldDate|receivedDate)$/.test(k)&&typeof v==='number'?dt(v):String(v)
 const KV=({o,skip=[]})=><dl className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[10rem_1fr]">{Object.entries(o).filter(([k,v])=>v!==undefined&&v!==null&&v!==''&&!skip.includes(k)).map(([k,v])=><Fragment key={k}><dt className="text-slate-500">{k}</dt><dd className="mb-1.5 break-words font-medium sm:mb-0">{fm(k,v)}</dd></Fragment>)}</dl>
 const Sec=({t,children})=><section><h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{t}</h3>{children}</section>
 const None=()=><p className="text-sm text-slate-500">None recorded.</p>
-export default function Crm(){const d=useDB(),u=useUser(),pf=can(u,'profit'),[q,setQ]=useState(''),[sel,setSel]=useState(null),[v,setV]=useState(null),[ed,setEd]=useState(null)
- const L=d.cust.filter(c=>(c.name+c.phone).toLowerCase().includes(q.toLowerCase())),sales=c=>d.sale.filter(s=>s.custId===c.id).sort((a,b)=>b.date-a.date),reps=c=>d.ticket.filter(t=>t.custId===c.id).sort((a,b)=>b.date-a.date)
+export default function Crm(){const d=useDB(),u=useUser(),pf=can(u,'profit'),[q,setQ]=useState(''),[sel,setSel]=useState(null),[v,setV]=useState(null),[ed,setEd]=useState(null);useRemoteSearch(q)
+ const L=d.cust.filter(c=>matchQ(c,q)||d.ticket.some(t=>t.custId===c.id&&matchQ(t,q))),sales=c=>d.sale.filter(s=>s.custId===c.id).sort((a,b)=>b.date-a.date),reps=c=>d.ticket.filter(t=>t.custId===c.id).sort((a,b)=>b.date-a.date)
  const life=c=>sales(c).filter(s=>!s.void).reduce((a,s)=>a+s.total,0)+reps(c).reduce((a,t)=>a+(+t.cost||0),0)
  const Cl=({a})=>a.length?a.map(c=><div key={c.id} className="break-words text-sm">{c.code} · {c.status} · {c.issue}{c.supplier&&` · supplier ${c.supplier} ${c.sref||''}`}</div>):<None/>
  const cs=c=>{const S=sales(c),R=reps(c),sn=S.flatMap(s=>s.lines.map(l=>l.serial)).filter(Boolean),em=R.find(t=>t.email)
@@ -38,6 +38,6 @@ export default function Crm(){const d=useDB(),u=useUser(),pf=can(u,'profit'),[q,
  const edit=()=>{const {k,x}=ed,close=()=>setEd(null)
   if(k==='cust')return <EditModal title="Edit customer" fields={[{k:'name',label:'Name *',req:true},{k:'phone',label:'Phone *',type:'tel',req:true},{k:'email',label:'Email',type:'email'}]} value={x} onClose={close} onSave={async f=>{await update('cust',x.id,f);setSel(null)}}/>
   return <EditModal title={`Edit receipt ${x.code}`} fields={[{k:'name',label:'Customer name'},{k:'phone',label:'Phone',type:'tel'},{k:'pay',label:'Payment',o:['Cash','Bank transfer','Telebirr','CBE Birr']},{k:'disc',label:'Discount (ETB)',type:'number'}]} value={x} onClose={close} onSave={async f=>{const sub=x.lines.reduce((a,l)=>a+l.price*l.q,0),p={...f,total:Math.max(0,sub-f.disc)};if(normPhone(f.phone)!==normPhone(x.phone)||f.name!==x.name)p.custId=await upCust(f.name,f.phone);await update('sale',x.id,p);setV(null)}}/>}
- return <Page title="Customers"><In label="Search name or phone" value={q} onChange={e=>setQ(e.target.value)}/>
+ return <Page title="Customers"><><In label="Search by name, phone number or ticket code" type="search" placeholder="e.g. Abebe, 0924598198, R-12" value={q} onChange={e=>setQ(e.target.value)}/>{q&&<p className="text-sm text-slate-500">{L.length} customer(s) found</p>}</>
   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{L.map(c=><button key={c.id} onClick={()=>setSel(c)} className="rounded-2xl border border-white/30 bg-white/60 p-4 text-left shadow transition hover:-translate-y-0.5 hover:border-orange-500 active:scale-[.98] dark:border-white/10 dark:bg-white/5"><b className="block truncate">{c.name||'(no name)'}</b><span className="text-sm text-slate-500">{c.phone}</span><div className="mt-2 flex flex-wrap gap-1"><Tag>{sales(c).length} purchases</Tag><Tag>{reps(c).length} repairs</Tag><Tag c="ok">{mn(life(c))}</Tag></div></button>)}</div>
   {!L.length&&<p className="text-slate-500">No customers yet. They are added when you make a sale or a ticket with a phone number.</p>}{sel&&cs(sel)}{v&&dv()}{ed&&edit()}</Page>}

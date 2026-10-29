@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {Link} from 'react-router-dom'
-import {useDB,save,update,mn,notify,upCust,normPhone} from '../db'
+import {matchQ,useRemoteSearch,useDB,save,update,mn,notify,upCust,normPhone} from '../db'
 import {Card,Btn,In,Gate,Timeline,STATUSES,UNFIXED,StatusTag,EditModal,Page,useUser,can} from '../ui'
 import {ps} from './NewTicket'
 const U=STATUSES.indexOf(UNFIXED) // 5
@@ -13,7 +13,7 @@ const fields=pf=>[
  {k:'war',label:'Warranty (days)',type:'number'},
  {k:'work',label:'Work done / notes (customer sees this)',type:'textarea'},
  {k:'why',label:'Why it could not be fixed (customer sees this when Unfixed)',type:'textarea'}]
-export default function Repairs(){const d=useDB(),u=useUser(),pf=can(u,'profit'),[q,setQ]=useState(''),[slip,setSlip]=useState(null),[m,setM]=useState(null),[v,setV]=useState({}),[err,setErr]=useState(''),[ed,setEd]=useState(null)
+export default function Repairs(){const d=useDB(),u=useUser(),pf=can(u,'profit'),[q,setQ]=useState(''),[slip,setSlip]=useState(null),[m,setM]=useState(null),[v,setV]=useState({}),[err,setErr]=useState(''),[ed,setEd]=useState(null);useRemoteSearch(q)
  // move a ticket to status i; history keeps one entry per step passed
  const apply=async(t,i,x={})=>{const now=Date.now(),cur=STATUSES.indexOf(t.status),hist=[...(t.hist||[])]
   if(i===U||cur===U)hist.push({s:STATUSES[i],t:now});else for(let k=cur+1;k<=i;k++)hist.push({s:STATUSES[k],t:now})
@@ -35,9 +35,9 @@ export default function Repairs(){const d=useDB(),u=useUser(),pf=can(u,'profit')
  const saveEdit=async f=>{const t=ed,{status,...patch}=f;if(!pf)delete patch.pcost
   if(f.name!==t.name||normPhone(f.phone)!==normPhone(t.phone))patch.custId=await upCust(f.name,f.phone) // keep the customer history linked
   if(status!==t.status)await apply(t,STATUSES.indexOf(status),patch);else await update('ticket',t.id,patch)}
- const L=d.ticket.filter(t=>JSON.stringify(t).toLowerCase().includes(q.toLowerCase())).sort((a,b)=>b.ts-a.ts)
+ const L=d.ticket.filter(t=>matchQ(t,q)).sort((a,b)=>b.ts-a.ts)
  return <Page title="Repair tickets" right={<Link to="/staff/repairs/new"><Btn>+ New ticket</Btn></Link>}>
-  <In label="Search name, phone, IMEI, code" value={q} onChange={e=>setQ(e.target.value)}/>
+  <><In label="Search by customer name, phone number or ticket code" type="search" placeholder="e.g. Abebe, 0924598198, R-12" value={q} onChange={e=>setQ(e.target.value)}/>{q&&<p className="text-sm text-slate-500">{L.length} ticket(s) found</p>}</>
   <div className="grid gap-3 lg:grid-cols-2">{L.map(t=><Card key={t.id} className="space-y-3"><div className="flex flex-wrap items-center gap-2"><b className="font-mono">{t.code}</b><StatusTag s={t.status}/><span className="flex-1"/><span className="text-sm">{mn(t.cost)}</span></div>
    <div className="break-words text-sm text-slate-500">{t.name} · {t.phone} · {t.device} {t.imei}<br/>{t.issue}</div>{t.status===UNFIXED&&t.why&&<p className="rounded-xl bg-red-500/10 p-2 text-sm text-red-600 dark:text-red-400"><b>Not repaired:</b> {t.why}</p>}
    <Timeline status={t.status} hist={t.hist} onStep={i=>step(t,i)}/><p className="text-center text-[11px] text-slate-400">Tap a step to move the repair there. The red ✕ marks a device that could not be fixed.</p>

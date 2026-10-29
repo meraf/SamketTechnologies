@@ -42,7 +42,7 @@ export async function update(type,id,patch){
 const P=g=>new Proxy(g,{get:(t,k)=>t[k]||[]})
 export function useDB(){const [d,setD]=useState(P({}));const f=async()=>{const g={};for(const x of await everything())if(!x.del)(g[x.type]??=[]).push(x);setD(P(g))}
  useEffect(()=>{f();bus.addEventListener('c',f);return()=>bus.removeEventListener('c',f)},[]);return d}
-export function useSync(){const [s,setS]=useState({on:navigator.onLine,p:0,c:0,o:0}),f=async()=>{const a=await everything();setS({on:navigator.onLine,p:a.filter(x=>x.dirty).length,c:a.filter(x=>x.type==='conflict').length,o:await pendingCount()})}
+export function useSync(){const [s,setS]=useState({on:navigator.onLine,p:0,c:0,o:0,e:''}),f=async()=>{const a=await everything();setS({on:navigator.onLine,p:a.filter(x=>x.dirty).length,c:a.filter(x=>x.type==='conflict').length,o:await pendingCount(),e:localStorage.syncErr||''})}
  useEffect(()=>{f();['online','offline'].forEach(e=>addEventListener(e,f));bus.addEventListener('c',f);return()=>{['online','offline'].forEach(e=>removeEventListener(e,f));bus.removeEventListener('c',f)}},[]);return s}
 export const stock=(d,i)=>i.ser?d.unit.filter(u=>u.itemId===i.id&&u.status==='in_stock').length:d.move.filter(m=>m.item===i.id).reduce((a,m)=>a+m.q,0)
 export const upCust=async(name,phone)=>{const p=normPhone(phone);if(!p)return'';const ex=(await everything()).find(x=>x.type==='cust'&&!x.del&&normPhone(x.phone)===p);const id=ex?ex.id:custId(p);await save('cust',{...(ex||{}),id,name:name||ex?.name||'',phone:ex?ex.phone:p});return id}
@@ -58,7 +58,7 @@ export async function sync(){
  await flushOutbox().catch(()=>0) // queued calls (e.g. a customer's offline repair request) go out for everyone
  if(busy||!staffOn())return;busy=1 // record sync is staff-only
  try{
-  const post=async(docs,since)=>{const r=await fetch(base()+'/api/sync',{method:'POST',headers:hdr(),body:JSON.stringify({since,docs})});if(!r.ok)throw 0;return r.json()}
+  const post=async(docs,since)=>{const r=await fetch(base()+'/api/sync',{method:'POST',headers:hdr(),body:JSON.stringify({since,docs})});if(!r.ok)throw{status:r.status};return r.json()}
   // pull in pages (the server caps each response)
   let since=+localStorage.since||0
   for(;;){
@@ -73,7 +73,20 @@ export async function sync(){
   for(let i=0;i<d.length;){let k=i,sz=0;while(k<d.length&&(k===i||sz+JSON.stringify(d[k]).length<2.5e6)){sz+=JSON.stringify(d[k]).length;k++}
    await post(d.slice(i,k).map(({dirty,...x})=>x),9e15);i=k}
   for(const x of d){const l=await get(x.id);if(l?.dirty&&l.ts===x.ts)await put({...l,dirty:0})}
- }catch{}
+ localStorage.removeItem('syncErr')
+ }catch(e){localStorage.syncErr=e&&e.status?String(e.status):'net'}
  busy=0;ping()}
 export async function resolve(c,pick){await put(pick==='mine'?{...c.mine,ts:Date.now(),dirty:1}:{...c.theirs,dirty:0});await rm(c.id);ping();sync()}
 addEventListener('online',sync);addEventListener('visibilitychange',()=>!document.hidden&&sync());setInterval(sync,20000);setTimeout(sync,500)
+
+/** Pull every record again from the server (use after fixing the sync key on a device). */
+export const resync=async()=>{localStorage.since=0;await sync()}
+/** Does this ticket / customer match the typed text? Name, phone (any format), ticket code, device, IMEI, email. */
+export const matchQ=(o,q)=>{q=String(q||'').trim().toLowerCase();if(!q)return true;const dg=q.replace(/\D/g,'').replace(/^(0|251)/,'')
+ return[o.name,o.code,o.device,o.imei,o.email].some(v=>String(v||'').toLowerCase().includes(q))||(dg.length>=3&&normPhone(o.phone).includes(dg))}
+/** Ask the database (staff only) and cache hits locally, so results show even before a full sync. */
+export async function searchRemote(text){
+ if(!navigator.onLine||!staffOn()||String(text||'').trim().length<2)return
+ try{const r=await fetch(base()+'/api/search?q='+encodeURIComponent(String(text).trim()),{headers:hdr()});if(!r.ok)return
+  for(const x of(await r.json()).docs){const l=await get(x.id);if(!l||(!l.dirty&&x.ts>l.ts))await put(x)};ping()}catch{}}
+export function useRemoteSearch(q){useEffect(()=>{const t=setTimeout(()=>searchRemote(q),350);return()=>clearTimeout(t)},[q])}
