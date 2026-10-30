@@ -1,29 +1,394 @@
-import {useState} from 'react'
-import {useDB,mn,day} from '../db'
-import {Card,Sel,In,Tag,Modal,can,useUser} from '../ui'
-const D=864e5,dt=s=>{const[y,m,d]=String(s).split('-').map(Number);return new Date(y,(m||1)-1,d||1)}
-const dtm=t=>t?new Date(t).toLocaleString():'—'
-function span(mode,v){let s,e,p
- if(mode==='Daily'){s=dt(v.day);e=new Date(+s+D);p=[new Date(+s-D),s]}
- else if(mode==='Monthly'){s=dt(v.month);e=new Date(s.getFullYear(),s.getMonth()+1,1);p=[new Date(s.getFullYear(),s.getMonth()-1,1),s]}
- else if(mode==='Yearly'){s=new Date(+v.year,0,1);e=new Date(+v.year+1,0,1);p=[new Date(+v.year-1,0,1),s]}
- else{s=dt(v.from);e=new Date(+dt(v.to)+D);p=[new Date(+s-(e-s)),s]}
- return{s:+s,e:+e,ps:+p[0],pe:+p[1]}}
-const rows=(d,a,b)=>[...d.sale.filter(s=>!s.void&&s.date>=a&&s.date<b).map(s=>({k:'Retail',t:s.date,code:s.code,amt:s.total,cost:s.lines.reduce((x,l)=>x+(l.cost||0)*l.q,0),who:s.name,raw:s})),
- ...d.ticket.filter(t=>t.status==='Delivered'&&t.done>=a&&t.done<b).map(t=>({k:'Repair',t:t.done,code:t.code,amt:+t.cost||0,cost:+t.pcost||0,who:t.name,raw:t})),
- ...d.b2b.filter(x=>+x.amount>0&&!['Quote','Cancelled'].includes(x.status)&&(x.date||x.ts)>=a&&(x.date||x.ts)<b).map(x=>({k:'B2B',t:x.date||x.ts,code:x.inv||x.id.slice(-6).toUpperCase(),amt:+x.amount,cost:+x.cost||0,who:x.company,raw:x}))]
-const KV=({o})=><dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[10rem_1fr]">{Object.entries(o).filter(([,v])=>v!==undefined&&v!==null&&v!=='').map(([k,v])=><div key={k} className="contents"><dt className="text-slate-500">{k}</dt><dd className="mb-1 break-words font-medium sm:mb-0">{String(v)}</dd></div>)}</dl>
-export default function Analytics(){const d=useDB(),u=useUser(),pf=can(u,'profit'),[mode,setMode]=useState('Daily'),[v,setV]=useState({day:day(),month:day().slice(0,7),year:day().slice(0,4),from:day(),to:day()}),[sel,setSel]=useState(null)
- const r=span(mode,v),cur=rows(d,r.s,r.e),prev=rows(d,r.ps,r.pe),sum=(a,k)=>a.filter(x=>!k||x.k===k).reduce((n,x)=>n+x.amt,0),prof=(a,k)=>a.filter(x=>!k||x.k===k).reduce((n,x)=>n+x.amt-x.cost,0)
- const N=8,bk=(a,s,e)=>{const o=Array(N).fill(0),w=(e-s)/N;a.forEach(x=>{const i=Math.min(N-1,Math.floor((x.t-s)/w));if(i>=0)o[i]+=x.amt});return o},c1=bk(cur,r.s,r.e),c2=bk(prev,r.ps,r.pe),mx=Math.max(1,...c1,...c2)
- const items=cur.filter(x=>x.k==='Retail').reduce((n,x)=>n+x.raw.lines.reduce((a,l)=>a+l.q,0),0),K=(a,b,c)=><Card><div className="text-sm text-slate-500">{a}</div><div className="text-xl font-extrabold">{b}</div><div className="text-xs text-slate-500">{c}</div></Card>
- const pl={Daily:'yesterday',Monthly:'last month',Yearly:'last year',Custom:'previous period'}[mode],set=k=>e=>setV({...v,[k]:e.target.value}),x=sel&&sel.raw
- return <div className="mx-auto max-w-6xl space-y-4 p-4 pb-0 sm:p-6 sm:pb-0"><div className="flex flex-wrap items-end gap-3"><h1 className="mr-auto text-2xl font-extrabold tracking-tight sm:text-3xl">Financial overview</h1><Sel label="View" o={['Daily','Monthly','Yearly','Custom']} value={mode} onChange={e=>setMode(e.target.value)}/>
-  {mode==='Daily'&&<In label="Day" type="date" value={v.day} onChange={set('day')}/>}{mode==='Monthly'&&<In label="Month" type="month" value={v.month} onChange={set('month')}/>}{mode==='Yearly'&&<In label="Year" type="number" value={v.year} onChange={set('year')}/>}{mode==='Custom'&&<><In label="From" type="date" value={v.from} onChange={set('from')}/><In label="To" type="date" value={v.to} onChange={set('to')}/></>}</div>
-  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{K('Total revenue',mn(sum(cur)),`${mn(sum(prev))} ${pl}`)}{pf?K('Net profit',mn(prof(cur)),`${mn(prof(prev))} ${pl}`):K('Net profit','Admin only','')}{K('Retail sales',mn(sum(cur,'Retail')),pf?'profit '+mn(prof(cur,'Retail')):'')}{K('Repair services',mn(sum(cur,'Repair')),pf?'profit '+mn(prof(cur,'Repair')):'')}{K('B2B camera / IT',mn(sum(cur,'B2B')),pf?'profit '+mn(prof(cur,'B2B')):'')}{K('Items sold',items,'retail units')}{K('Devices repaired',cur.filter(x=>x.k==='Repair').length,'delivered')}{K('Active B2B contracts',d.b2b.filter(x=>x.status==='Active').length,'right now')}</div>
-  <Card><div className="mb-2 flex flex-wrap gap-3 text-sm"><b>Revenue: this period vs {pl}</b><span className="text-orange-500">■ this period</span><span className="text-slate-400">■ {pl}</span></div><div className="overflow-x-auto"><svg viewBox="0 0 320 120" className="h-40 w-full min-w-[260px]" role="img" aria-label="Revenue comparison">{c1.map((a,i)=><g key={i}><rect x={10+i*38} y={110-a/mx*100} width="15" height={a/mx*100} rx="2" fill="#f97316"/><rect x={26+i*38} y={110-c2[i]/mx*100} width="15" height={c2[i]/mx*100} rx="2" fill="#94a3b8"/></g>)}<line x1="0" x2="320" y1="110" y2="110" stroke="#94a3b8" strokeOpacity=".4"/></svg></div></Card>
-  <Card className="overflow-x-auto"><h2 className="mb-2 font-bold">Transactions ({cur.length})</h2><table><thead><tr><th>Date</th><th>Type</th><th>Code</th><th>Customer</th><th>Amount</th></tr></thead><tbody>{cur.sort((a,b)=>b.t-a.t).map((t,i)=><tr key={i} onClick={()=>setSel(t)} className="cursor-pointer hover:bg-orange-500/10"><td className="whitespace-nowrap">{dtm(t.t)}</td><td><Tag c={t.k==='Retail'?'ok':t.k==='Repair'?'warn':'slate'}>{t.k}</Tag></td><td className="font-mono">{t.code}</td><td>{t.who}</td><td className="whitespace-nowrap">{mn(t.amt)}</td></tr>)}</tbody></table>{!cur.length&&<p className="text-sm text-slate-500">No transactions in this period.</p>}</Card>
-  {sel&&<Modal title={`${sel.k} · ${sel.code}`} onClose={()=>setSel(null)}>
-   {sel.k==='Retail'&&<><KV o={{Receipt:x.code,Time:dtm(x.date),Customer:x.name,Phone:x.phone,Payment:x.pay,Discount:mn(x.disc),Total:mn(x.total),'Sold by':x.by,...(pf?{Profit:mn(sel.amt-sel.cost)}:{})}}/><table><thead><tr><th>Item</th><th>IMEI / SN</th><th>Qty</th><th>Price</th>{pf&&<th>Cost</th>}</tr></thead><tbody>{x.lines.map((l,i)=><tr key={i}><td>{l.name}</td><td className="font-mono text-xs">{l.serial||l.imei}</td><td>{l.q}</td><td>{mn(l.price*l.q)}</td>{pf&&<td>{mn((l.cost||0)*l.q)}</td>}</tr>)}</tbody></table></>}
-   {sel.k==='Repair'&&<KV o={{Ticket:x.code,Customer:x.name,Phone:x.phone,Email:x.email,Device:x.device,'IMEI / serial':x.imei,Problem:x.issue,'Work done':x.work,'Repair charge':mn(x.cost),'Parts cost':pf?mn(x.pcost):'','Labor (charge − parts)':pf?mn((x.cost||0)-(x.pcost||0)):'',Technician:x.tech||x.by||'—',Payment:x.pay||'—','Warranty (days)':x.war||0,Opened:dtm(x.date),Delivered:dtm(x.done)}}/>}
-   {sel.k==='B2B'&&<KV o={{Company:x.company,'Tax ID':x.taxId,Contact:x.contact,Phone:x.phone,Email:x.email,Service:x.kind,Site:x.site,Devices:x.devices,SLA:x.sla,Status:x.status,'Invoice amount':mn(x.amount),'Our cost':pf?mn(x.cost):'',Contract:x.start?`${x.start} → ${x.end||'open'}`:'',Notes:x.notes,Time:dtm(x.date||x.ts)}}/>}</Modal>}</div>}
+import { useState } from "react";
+import { useDB, mn, day } from "../db";
+import { Card, Sel, In, Tag, Modal, can, useUser } from "../ui";
+const D = 864e5,
+  dt = (s) => {
+    const [y, m, d] = String(s).split("-").map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+  };
+const dtm = (t) => (t ? new Date(t).toLocaleString() : "—");
+function span(mode, v) {
+  let s, e, p;
+  if (mode === "Daily") {
+    s = dt(v.day);
+    e = new Date(+s + D);
+    p = [new Date(+s - D), s];
+  } else if (mode === "Monthly") {
+    s = dt(v.month);
+    e = new Date(s.getFullYear(), s.getMonth() + 1, 1);
+    p = [new Date(s.getFullYear(), s.getMonth() - 1, 1), s];
+  } else if (mode === "Yearly") {
+    s = new Date(+v.year, 0, 1);
+    e = new Date(+v.year + 1, 0, 1);
+    p = [new Date(+v.year - 1, 0, 1), s];
+  } else {
+    s = dt(v.from);
+    e = new Date(+dt(v.to) + D);
+    p = [new Date(+s - (e - s)), s];
+  }
+  return { s: +s, e: +e, ps: +p[0], pe: +p[1] };
+}
+const rows = (d, a, b) => [
+  ...d.sale
+    .filter((s) => !s.void && s.date >= a && s.date < b)
+    .map((s) => ({
+      k: "Retail",
+      t: s.date,
+      code: s.code,
+      amt: s.total,
+      cost: s.lines.reduce((x, l) => x + (l.cost || 0) * l.q, 0),
+      who: s.name,
+      raw: s,
+    })),
+  ...d.ticket
+    .filter((t) => t.status === "Delivered" && t.done >= a && t.done < b)
+    .map((t) => ({
+      k: "Repair",
+      t: t.done,
+      code: t.code,
+      amt: +t.cost || 0,
+      cost: +t.pcost || 0,
+      who: t.name,
+      raw: t,
+    })),
+  ...d.b2b
+    .filter(
+      (x) =>
+        +x.amount > 0 &&
+        !["Quote", "Cancelled"].includes(x.status) &&
+        (x.date || x.ts) >= a &&
+        (x.date || x.ts) < b,
+    )
+    .map((x) => ({
+      k: "B2B",
+      t: x.date || x.ts,
+      code: x.inv || x.id.slice(-6).toUpperCase(),
+      amt: +x.amount,
+      cost: +x.cost || 0,
+      who: x.company,
+      raw: x,
+    })),
+];
+const KV = ({ o }) => (
+  <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[10rem_1fr]">
+    {Object.entries(o)
+      .filter(([, v]) => v !== undefined && v !== null && v !== "")
+      .map(([k, v]) => (
+        <div key={k} className="contents">
+          <dt className="text-slate-500">{k}</dt>
+          <dd className="mb-1 break-words font-medium sm:mb-0">{String(v)}</dd>
+        </div>
+      ))}
+  </dl>
+);
+export default function Analytics() {
+  const d = useDB(),
+    u = useUser(),
+    pf = can(u, "profit"),
+    [mode, setMode] = useState("Daily"),
+    [v, setV] = useState({
+      day: day(),
+      month: day().slice(0, 7),
+      year: day().slice(0, 4),
+      from: day(),
+      to: day(),
+    }),
+    [sel, setSel] = useState(null);
+  const r = span(mode, v),
+    cur = rows(d, r.s, r.e),
+    prev = rows(d, r.ps, r.pe),
+    sum = (a, k) =>
+      a.filter((x) => !k || x.k === k).reduce((n, x) => n + x.amt, 0),
+    prof = (a, k) =>
+      a.filter((x) => !k || x.k === k).reduce((n, x) => n + x.amt - x.cost, 0);
+  const N = 8,
+    bk = (a, s, e) => {
+      const o = Array(N).fill(0),
+        w = (e - s) / N;
+      a.forEach((x) => {
+        const i = Math.min(N - 1, Math.floor((x.t - s) / w));
+        if (i >= 0) o[i] += x.amt;
+      });
+      return o;
+    },
+    c1 = bk(cur, r.s, r.e),
+    c2 = bk(prev, r.ps, r.pe),
+    mx = Math.max(1, ...c1, ...c2);
+  const items = cur
+      .filter((x) => x.k === "Retail")
+      .reduce((n, x) => n + x.raw.lines.reduce((a, l) => a + l.q, 0), 0),
+    K = (a, b, c) => (
+      <Card>
+        <div className="text-sm text-slate-500">{a}</div>
+        <div className="text-xl font-extrabold">{b}</div>
+        <div className="text-xs text-slate-500">{c}</div>
+      </Card>
+    );
+  const pl = {
+      Daily: "yesterday",
+      Monthly: "last month",
+      Yearly: "last year",
+      Custom: "previous period",
+    }[mode],
+    set = (k) => (e) => setV({ ...v, [k]: e.target.value }),
+    x = sel && sel.raw;
+  return (
+    <div className="mx-auto max-w-6xl space-y-4 p-4 pb-0 sm:p-6 sm:pb-0">
+      <div className="flex flex-wrap items-end gap-3">
+        <h1 className="mr-auto text-2xl font-extrabold tracking-tight sm:text-3xl">
+          Financial overview
+        </h1>
+        <Sel
+          label="View"
+          o={["Daily", "Monthly", "Yearly", "Custom"]}
+          value={mode}
+          onChange={(e) => setMode(e.target.value)}
+        />
+        {mode === "Daily" && (
+          <In label="Day" type="date" value={v.day} onChange={set("day")} />
+        )}
+        {mode === "Monthly" && (
+          <In
+            label="Month"
+            type="month"
+            value={v.month}
+            onChange={set("month")}
+          />
+        )}
+        {mode === "Yearly" && (
+          <In
+            label="Year"
+            type="number"
+            value={v.year}
+            onChange={set("year")}
+          />
+        )}
+        {mode === "Custom" && (
+          <>
+            <In
+              label="From"
+              type="date"
+              value={v.from}
+              onChange={set("from")}
+            />
+            <In label="To" type="date" value={v.to} onChange={set("to")} />
+          </>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {K("Total revenue", mn(sum(cur)), `${mn(sum(prev))} ${pl}`)}
+        {pf
+          ? K("Net profit", mn(prof(cur)), `${mn(prof(prev))} ${pl}`)
+          : K("Net profit", "Admin only", "")}
+        {K(
+          "Retail sales",
+          mn(sum(cur, "Retail")),
+          pf ? "profit " + mn(prof(cur, "Retail")) : "",
+        )}
+        {K(
+          "Repair services",
+          mn(sum(cur, "Repair")),
+          pf ? "profit " + mn(prof(cur, "Repair")) : "",
+        )}
+        {K(
+          "B2B camera / IT",
+          mn(sum(cur, "B2B")),
+          pf ? "profit " + mn(prof(cur, "B2B")) : "",
+        )}
+        {K("Items sold", items, "retail units")}
+        {K(
+          "Devices repaired",
+          cur.filter((x) => x.k === "Repair").length,
+          "delivered",
+        )}
+        {K(
+          "Active B2B contracts",
+          d.b2b.filter((x) => x.status === "Active").length,
+          "right now",
+        )}
+      </div>
+      <Card>
+        <div className="mb-2 flex flex-wrap gap-3 text-sm">
+          <b>Revenue: this period vs {pl}</b>
+          <span className="text-orange-500">■ this period</span>
+          <span className="text-slate-400">■ {pl}</span>
+        </div>
+        <div className="overflow-x-auto">
+          <svg
+            viewBox="0 0 320 120"
+            className="h-40 w-full min-w-[260px]"
+            role="img"
+            aria-label="Revenue comparison"
+          >
+            {c1.map((a, i) => (
+              <g key={i}>
+                <rect
+                  x={10 + i * 38}
+                  y={110 - (a / mx) * 100}
+                  width="15"
+                  height={(a / mx) * 100}
+                  rx="2"
+                  fill="#f97316"
+                />
+                <rect
+                  x={26 + i * 38}
+                  y={110 - (c2[i] / mx) * 100}
+                  width="15"
+                  height={(c2[i] / mx) * 100}
+                  rx="2"
+                  fill="#94a3b8"
+                />
+              </g>
+            ))}
+            <line
+              x1="0"
+              x2="320"
+              y1="110"
+              y2="110"
+              stroke="#94a3b8"
+              strokeOpacity=".4"
+            />
+          </svg>
+        </div>
+      </Card>
+      <Card className="overflow-x-auto">
+        <h2 className="mb-2 font-bold">Transactions ({cur.length})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Code</th>
+              <th>Customer</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cur
+              .sort((a, b) => b.t - a.t)
+              .map((t, i) => (
+                <tr
+                  key={i}
+                  onClick={() => setSel(t)}
+                  className="cursor-pointer hover:bg-orange-500/10"
+                >
+                  <td className="whitespace-nowrap">{dtm(t.t)}</td>
+                  <td>
+                    <Tag
+                      c={
+                        t.k === "Retail"
+                          ? "ok"
+                          : t.k === "Repair"
+                            ? "warn"
+                            : "slate"
+                      }
+                    >
+                      {t.k}
+                    </Tag>
+                  </td>
+                  <td className="font-mono">{t.code}</td>
+                  <td>{t.who}</td>
+                  <td className="whitespace-nowrap">{mn(t.amt)}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+        {!cur.length && (
+          <p className="text-sm text-slate-500">
+            No transactions in this period.
+          </p>
+        )}
+      </Card>
+      {sel && (
+        <Modal title={`${sel.k} · ${sel.code}`} onClose={() => setSel(null)}>
+          {sel.k === "Retail" && (
+            <>
+              <KV
+                o={{
+                  Receipt: x.code,
+                  Time: dtm(x.date),
+                  Customer: x.name,
+                  Phone: x.phone,
+                  Payment: x.pay,
+                  Discount: mn(x.disc),
+                  Total: mn(x.total),
+                  "Sold by": x.by,
+                  ...(pf ? { Profit: mn(sel.amt - sel.cost) } : {}),
+                }}
+              />
+              <table>
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>IMEI / SN</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    {pf && <th>Cost</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {x.lines.map((l, i) => (
+                    <tr key={i}>
+                      <td>{l.name}</td>
+                      <td className="font-mono text-xs">
+                        {l.serial || l.imei}
+                      </td>
+                      <td>{l.q}</td>
+                      <td>{mn(l.price * l.q)}</td>
+                      {pf && <td>{mn((l.cost || 0) * l.q)}</td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+          {sel.k === "Repair" && (
+            <KV
+              o={{
+                Ticket: x.code,
+                Customer: x.name,
+                Phone: x.phone,
+                Email: x.email,
+                Device: x.device,
+                "IMEI / serial": x.imei,
+                Problem: x.issue,
+                "Work done": x.work,
+                "Repair charge": mn(x.cost),
+                "Parts cost": pf ? mn(x.pcost) : "",
+                "Labor (charge − parts)": pf
+                  ? mn((x.cost || 0) - (x.pcost || 0))
+                  : "",
+                Technician: x.tech || x.by || "—",
+                Payment: x.pay || "—",
+                "Warranty (days)": x.war || 0,
+                Opened: dtm(x.date),
+                Delivered: dtm(x.done),
+              }}
+            />
+          )}
+          {sel.k === "B2B" && (
+            <KV
+              o={{
+                Company: x.company,
+                "Tax ID": x.taxId,
+                Contact: x.contact,
+                Phone: x.phone,
+                Email: x.email,
+                Service: x.kind,
+                Site: x.site,
+                Devices: x.devices,
+                SLA: x.sla,
+                Status: x.status,
+                "Invoice amount": mn(x.amount),
+                "Our cost": pf ? mn(x.cost) : "",
+                Contract: x.start ? `${x.start} → ${x.end || "open"}` : "",
+                Notes: x.notes,
+                Time: dtm(x.date || x.ts),
+              }}
+            />
+          )}
+        </Modal>
+      )}
+    </div>
+  );
+}
