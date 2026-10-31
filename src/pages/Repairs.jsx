@@ -63,7 +63,9 @@ export default function Repairs() {
     [m, setM] = useState(null),
     [v, setV] = useState({}),
     [err, setErr] = useState(""),
-    [ed, setEd] = useState(null);
+    [ed, setEd] = useState(null),
+    [sortBy, setSortBy] = useState("date"),
+    [sortDir, setSortDir] = useState("desc");
   useRemoteSearch(q);
   // move a ticket to status i; history keeps one entry per step passed
   const apply = async (t, i, x = {}) => {
@@ -144,7 +146,26 @@ export default function Repairs() {
     if (status !== t.status) await apply(t, STATUSES.indexOf(status), patch);
     else await update("ticket", t.id, patch);
   };
-  const L = d.ticket.filter((t) => matchQ(t, q)).sort((a, b) => b.ts - a.ts);
+  const when = (t) => +t.date || +t.ts || 0,
+    // time of day (minutes since midnight) the ticket was logged
+    tod = (t) => {
+      const x = new Date(when(t));
+      return x.getHours() * 60 + x.getMinutes();
+    },
+    rank = (t) => {
+      const i = STATUSES.indexOf(t.status);
+      return i < 0 ? -1 : i; // "Requested" (website) first, then Received ... Delivered, Unfixed
+    };
+  const L = d.ticket
+    .filter((t) => matchQ(t, q))
+    .sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      let r;
+      if (sortBy === "status") r = rank(a) - rank(b) || when(b) - when(a);
+      else if (sortBy === "time") r = tod(a) - tod(b) || when(a) - when(b);
+      else r = when(a) - when(b);
+      return r * dir;
+    });
   return (
     <Page
       title="Repair tickets"
@@ -162,9 +183,36 @@ export default function Repairs() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        {q && (
-          <p className="text-sm text-slate-500">{L.length} ticket(s) found</p>
-        )}
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="block text-xs font-semibold text-slate-500">
+            Sort by
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="mt-1 rounded-xl border border-slate-400/30 bg-white/50 px-3 py-2 text-sm outline-none dark:bg-white/5"
+            >
+              <option value="date">Date</option>
+              <option value="status">Status</option>
+              <option value="time">Time (of day)</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
+            className="rounded-xl border border-slate-400/30 px-3 py-2 text-sm font-bold hover:bg-slate-500/10"
+          >
+            {sortDir === "asc"
+              ? sortBy === "date" || sortBy === "time"
+                ? "↑ Oldest first"
+                : "↑ First step first"
+              : sortBy === "date" || sortBy === "time"
+                ? "↓ Newest first"
+                : "↓ Last step first"}
+          </button>
+          {q && (
+            <span className="pb-2 text-sm text-slate-500">{L.length} ticket(s) found</span>
+          )}
+        </div>
       </>
       <div className="grid gap-3 lg:grid-cols-2">
         {L.map((t) => (
@@ -172,6 +220,11 @@ export default function Repairs() {
             <div className="flex flex-wrap items-center gap-2">
               <b className="font-mono">{t.code}</b>
               <StatusTag s={t.status} />
+              {t.doa && <span className="rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-bold text-red-600 dark:text-red-400">DOA</span>}
+              <span className="text-xs text-slate-400">
+                {new Date(when(t)).toLocaleDateString()}{" "}
+                {new Date(when(t)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
               <span className="flex-1" />
               <span className="text-sm">{mn(t.cost)}</span>
             </div>

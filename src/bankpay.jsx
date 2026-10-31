@@ -5,7 +5,8 @@ import { mn, DEFAULT_SYNC_KEY } from "./db";
 // Banks / wallets in the order most used in Ethiopia.
 export const BANKS = [
   ["Telebirr", "Telebirr"],
-  ["CBE Birr", "CBE Birr (Commercial Bank of Ethiopia)"],
+  ["CBE", "CBE (Commercial Bank of Ethiopia)"],
+  ["CBE Birr", "CBE Birr (mobile wallet)"],
   ["M-Pesa", "M-Pesa"],
   ["Bank of Abyssinia", "Bank of Abyssinia"],
   ["Awash Bank", "Awash Bank"],
@@ -54,7 +55,14 @@ export function judge(resp, accts, bank) {
       txDate: rc.transaction_date || "",
       txRef: d.transaction_number || "",
     };
-  if (!r.success) return { ...base, status: "failed", note: r.message || `Transaction not verified (HTTP ${resp.http})` };
+  if (!r.success)
+    return {
+      ...base,
+      status: "failed",
+      note:
+        (r.message || `Transaction not verified (HTTP ${resp.http})`) +
+        " Check the bank and reference, or upload the receipt image. You can still complete the sale.",
+    };
   if (!accts.length)
     return { ...base, status: "failed", note: "No store bank account is saved on the Cash page, so the receiver cannot be matched." };
   const mine = accts.filter((a) => a.bank === bank),

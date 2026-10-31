@@ -12,6 +12,8 @@ export const CH = [
   "Charging port",
   "Water indicator",
 ];
+const allNA = () => Object.fromEntries(CH.map((k) => [k, "N/A"]));
+const allOK = () => Object.fromEntries(CH.map((k) => [k, "OK"]));
 export const ps = (t, tear = false) => ({
   title: "REPAIR " + t.code,
   lines: [
@@ -24,6 +26,7 @@ export const ps = (t, tear = false) => ({
       Object.entries(t.chk || {})
         .map(([k, v]) => k.split(" ")[0] + ":" + v)
         .join(" "),
+    ...(t.doa ? ["DOA: Dead on Arrival"] : []),
     "Condition accepted: " + (t.ack ? "YES" : "NO"),
     ...(t.status === "Delivered"
       ? [
@@ -53,7 +56,8 @@ export const ps = (t, tear = false) => ({
 export default function NewTicket() {
   const [f, b, setF] = useF({
       dtype: "Phone",
-      chk: Object.fromEntries(CH.map((k) => [k, "OK"])),
+      chk: allOK(),
+      doa: false,
     }),
     [slip, setSlip] = useState(null),
     nav = useNavigate();
@@ -64,6 +68,7 @@ export default function NewTicket() {
         ...f,
         custId: cid,
         code: newTicketCode(),
+        doa: !!f.doa,
         status: "Received",
         cost: 0,
         pcost: 0,
@@ -101,6 +106,18 @@ export default function NewTicket() {
               {...b("issue")}
               className="mt-1 w-full rounded-xl border border-slate-400/30 bg-white/50 px-3 py-2 text-sm dark:bg-white/5"
             />
+          </label>
+          <label className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/5 px-3 py-2 text-sm font-semibold sm:col-span-2 lg:col-span-3">
+            <input
+              type="checkbox"
+              checked={!!f.doa}
+              onChange={(e) =>
+                // DOA (dead on arrival): the device cannot be tested, so every checklist item defaults to N/A.
+                // Unticking restores OK. Individual items can still be changed by hand afterwards.
+                setF({ ...f, doa: e.target.checked, chk: e.target.checked ? allNA() : allOK() })
+              }
+            />
+            DOA (Dead on Arrival): device does not power on. Sets the whole checklist to N/A.
           </label>
           <div className="sm:col-span-2 lg:col-span-3">
             <b className="text-sm">Intake checklist (condition before work)</b>

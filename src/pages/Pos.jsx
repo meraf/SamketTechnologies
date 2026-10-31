@@ -49,10 +49,51 @@ export default function Pos() {
     [done, setDone] = useState(null),
     [busy, setBusy] = useState(false),
     [bk, setBk] = useState(BK),
+    [sortBy, setSortBy] = useState(() => {
+      try {
+        return localStorage.posSort || "name";
+      } catch {
+        return "name";
+      }
+    }),
+    [sortDir, setSortDir] = useState(() => {
+      try {
+        return localStorage.posDir || "asc";
+      } catch {
+        return "asc";
+      }
+    }),
     cartRef = useRef();
-  const items = d.item.filter((i) =>
-    (i.name + i.cat).toLowerCase().includes(q.toLowerCase()),
-  );
+  const pickSort = (v) => {
+    setSortBy(v);
+    try {
+      localStorage.posSort = v;
+    } catch {}
+  };
+  const pickDir = (v) => {
+    setSortDir(v);
+    try {
+      localStorage.posDir = v;
+    } catch {}
+  };
+  // Sort by name / type (category) / amount (price). Items with 0 stock ALWAYS sit at the bottom, whatever the sort.
+  const items = d.item
+    .filter((i) => (i.name + i.cat).toLowerCase().includes(q.toLowerCase()))
+    .map((i) => ({ i, n: stock(d, i) }))
+    .sort((a, b) => {
+      const za = a.n <= 0 ? 1 : 0,
+        zb = b.n <= 0 ? 1 : 0;
+      if (za !== zb) return za - zb;
+      const dir = sortDir === "desc" ? -1 : 1,
+        nm = String(a.i.name || "").localeCompare(String(b.i.name || ""), undefined, { numeric: true, sensitivity: "base" });
+      let r;
+      if (sortBy === "type")
+        r = String(a.i.cat || "").localeCompare(String(b.i.cat || ""), undefined, { sensitivity: "base" }) || nm;
+      else if (sortBy === "amount") r = (+a.i.price || 0) - (+b.i.price || 0) || nm;
+      else r = nm;
+      return r * dir;
+    })
+    .map((x) => x.i);
   const free = (i) =>
     d.unit.filter(
       (u) =>
@@ -201,11 +242,34 @@ export default function Pos() {
           <Card>
             <Scan onScan={scan} />
           </Card>
-          <In
-            label="Search items"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+          <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2">
+            <In
+              label="Search items"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            <label className="block text-xs font-semibold text-slate-500">
+              Sort by
+              <select
+                value={sortBy}
+                onChange={(e) => pickSort(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-400/30 bg-white/50 px-3 py-2 text-sm outline-none dark:bg-white/5"
+              >
+                <option value="name">Name</option>
+                <option value="type">Type</option>
+                <option value="amount">Amount</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              aria-label={sortDir === "asc" ? "Ascending, tap for descending" : "Descending, tap for ascending"}
+              title={sortDir === "asc" ? "Ascending" : "Descending"}
+              onClick={() => pickDir(sortDir === "asc" ? "desc" : "asc")}
+              className="rounded-xl border border-slate-400/30 px-3 py-2 text-sm font-bold hover:bg-slate-500/10"
+            >
+              {sortDir === "asc" ? "↑ A–Z" : "↓ Z–A"}
+            </button>
+          </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {items.map((i) => {
               const n = stock(d, i),
@@ -213,7 +277,7 @@ export default function Pos() {
               return (
                 <div
                   key={i.id}
-                  className={`flex flex-col rounded-2xl border bg-white/60 p-3 shadow transition dark:bg-white/5 ${c ? "border-orange-500" : "border-white/30 dark:border-white/10"}`}
+                  className={`flex flex-col rounded-2xl border bg-white/60 p-3 shadow transition dark:bg-white/5 ${n <= 0 && !c ? "opacity-60" : ""} ${c ? "border-orange-500" : "border-white/30 dark:border-white/10"}`}
                 >
                   <button
                     type="button"
@@ -445,57 +509,61 @@ export default function Pos() {
         </Card>
       </div>
       {pick && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm">
-          <Card className="max-h-[85vh] w-full max-w-md overflow-auto !bg-white dark:!bg-slate-900">
-            <h3 className="mb-1 font-bold">Select variant: {pick.name}</h3>
-            <p className="mb-3 text-xs text-slate-500">
-              Choose the exact unit(s) being sold. Each keeps its own serial /
-              IMEI and warranty. You can tick several different units.
-            </p>
-            {free(pick).map((u) => {
-              const on = sel.includes(u.id),
-                cond = u.cond || pick.cond,
-                note = u.condNote || pick.condNote;
-              return (
-                <label
-                  key={u.id}
-                  className={`mb-2 flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition ${on ? "border-orange-500 bg-orange-500/10" : "border-slate-400/30 hover:bg-orange-500/5"}`}
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={on}
-                    onChange={() =>
-                      setSel(
-                        on ? sel.filter((x) => x !== u.id) : [...sel, u.id],
-                      )
-                    }
-                  />
-                  <span className="min-w-0 flex-1">
-                    <b className="block">{pick.name}</b>
-                    <span className="block break-all font-mono text-xs">
-                      S/N · IMEI: {u.serial}
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-3 backdrop-blur-sm sm:p-4">
+          <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl dark:bg-slate-900">
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <h3 className="mb-1 font-bold">Select variant: {pick.name}</h3>
+              <p className="mb-3 text-xs text-slate-500">
+                Choose the exact unit(s) being sold. Each keeps its own serial /
+                IMEI and warranty. You can tick several different units.
+              </p>
+              {free(pick).map((u) => {
+                const on = sel.includes(u.id),
+                  cond = u.cond || pick.cond,
+                  note = u.condNote || pick.condNote;
+                return (
+                  <label
+                    key={u.id}
+                    className={`mb-2 flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition ${on ? "border-orange-500 bg-orange-500/10" : "border-slate-400/30 hover:bg-orange-500/5"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={on}
+                      onChange={() =>
+                        setSel(
+                          on ? sel.filter((x) => x !== u.id) : [...sel, u.id],
+                        )
+                      }
+                    />
+                    <span className="min-w-0 flex-1">
+                      <b className="block">{pick.name}</b>
+                      <span className="block break-all font-mono text-xs">
+                        S/N · IMEI: {u.serial}
+                      </span>
+                      <span className="mt-1 flex flex-wrap gap-1.5">
+                        <Tag>RAM {u.ram || pick.ram || "—"}</Tag>
+                        <Tag>Storage {u.storage || pick.storage || "—"}</Tag>
+                        <Tag c={condTag(cond)}>
+                          {cond
+                            ? cond === "Used" && note
+                              ? `Used: ${note}`
+                              : cond
+                            : "Condition —"}
+                        </Tag>
+                      </span>
                     </span>
-                    <span className="mt-1 flex flex-wrap gap-1.5">
-                      <Tag>RAM {u.ram || pick.ram || "—"}</Tag>
-                      <Tag>Storage {u.storage || pick.storage || "—"}</Tag>
-                      <Tag c={condTag(cond)}>
-                        {cond
-                          ? cond === "Used" && note
-                            ? `Used: ${note}`
-                            : cond
-                          : "Condition —"}
-                      </Tag>
-                    </span>
-                  </span>
-                </label>
-              );
-            })}
-            {!free(pick).length && (
-              <p className="text-slate-500">No units in stock.</p>
-            )}
-            <div className="mt-3 flex gap-2">
+                  </label>
+                );
+              })}
+              {!free(pick).length && (
+                <p className="text-slate-500">No units in stock.</p>
+              )}
+            </div>
+            {/* Sticky footer: OK / Cancel stay on screen however long the unit list is. */}
+            <div className="flex shrink-0 gap-2 border-t border-slate-400/20 bg-white px-5 py-3 dark:bg-slate-900">
               <Btn
+                className="flex-1"
                 disabled={!sel.length}
                 onClick={() =>
                   addMany(
@@ -510,7 +578,7 @@ export default function Pos() {
                 Cancel
               </Btn>
             </div>
-          </Card>
+          </div>
         </div>
       )}
       {!!units && (

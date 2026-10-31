@@ -129,8 +129,10 @@ export default function Inventory() {
                 "Laptops",
                 "Desktops",
                 "Modems",
+                "Tablets",
                 "Parts",
                 "Accessories",
+                "Other",
               ]}
               {...b("cat")}
             />
@@ -214,7 +216,7 @@ export default function Inventory() {
             <>
               <p className="text-sm text-slate-500">
                 Set this variant (cost, RAM, storage, condition), then scan or type each
-                serial / IMEI and press <b>Enter</b> or <b>Next / Add Another</b>. Every unit is saved
+                serial / IMEI / service tag (phones, laptops, desktops, modems, tablets and every other serialized item) and press <b>Enter</b> or <b>Next / Add Another</b>. Every unit is saved
                 straight away with these settings and the serial box clears for the next one. Change
                 any setting (for example a different condition note for a Used unit) between entries.
               </p>
@@ -234,7 +236,7 @@ export default function Inventory() {
               <Scan
                 onScan={registerUnit}
                 next="Next / Add Another"
-                label="Serial / IMEI (scan or type, then Enter)"
+                label="Serial / IMEI / service tag (scan or type, then Enter)"
               />
               {!!ser.length && (
                 <div className="space-y-1.5">

@@ -7,7 +7,7 @@ export {normPhone}
 
 export const dev=localStorage.dev||(localStorage.dev=Math.random().toString(36).slice(2,6))
 export const uid=()=>dev+Date.now().toString(36)+Math.random().toString(36).slice(2,6)
-export const PFX={Phones:'P',Laptops:'L',Desktops:'D',Modems:'M',Parts:'PT',Accessories:'AC'}
+export const PFX={Phones:'P',Laptops:'L',Desktops:'D',Modems:'M',Tablets:'T',Other:'OT',Parts:'PT',Accessories:'AC'}
 export const mn=n=>(+n||0).toLocaleString()+' ETB'
 export const day=(t=Date.now())=>new Date(t).toISOString().slice(0,10)
 export const addD=n=>day(Date.now()+n*864e5)
