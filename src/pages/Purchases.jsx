@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { useDB, day, normPhone } from "../db";
-import { Card, Btn, In, Tag, Slip, saleSlip, sns, Page } from "../ui";
+import {
+  Card,
+  Btn,
+  In,
+  Tag,
+  Slip,
+  PrintSheet,
+  saleSlip,
+  sns,
+  Page,
+} from "../ui";
 export default function Purchases() {
   const d = useDB(),
     [f, setF] = useState({}),
@@ -137,9 +147,12 @@ export default function Purchases() {
               </Btn>
             </Card>
             <div className="overflow-x-auto">
-              <div id="sheet" className="w-fit">
+              <div className="w-fit">
                 <Slip slip={saleSlip(s)} w="80" />
               </div>
+              <PrintSheet page="80mm auto">
+                <Slip slip={saleSlip(s)} w="80" />
+              </PrintSheet>
             </div>
           </div>
         ))}

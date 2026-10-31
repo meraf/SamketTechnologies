@@ -71,6 +71,7 @@ export default function Track() {
     [tc, setTc] = useState(""),
     [t, setT] = useState(null),
     [msg, setMsg] = useState(""),
+    [info, setInfo] = useState({}),
     [queued, setQueued] = useState(false),
     [err, setErr] = useState(""),
     [bot, setBot] = useState(""),
@@ -125,6 +126,7 @@ export default function Track() {
       */
       if (!r.ok) throw 0;
       const c = (await r.json()).code;
+      setInfo(f);
       setMsg(c);
       setTc(c);
       find(c);
@@ -176,7 +178,7 @@ export default function Track() {
 
   return (
     <Page title="Repair customer portal">
-      <TicketDone code={msg} onClose={() => setMsg("")} />
+      <TicketDone code={msg} info={info} onClose={() => setMsg("")} />
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <h2 className="mb-2 text-xl font-bold">Open a ticket</h2>

@@ -83,9 +83,13 @@ export default function Repairs() {
     notify(nt, STATUSES[i]);
     return nt;
   };
+  // Tear-away stub exists ONLY at step 1 (Received): ticket received from the website, or created by staff.
   const step = (t, i) => {
     const cur = STATUSES.indexOf(t.status);
     if (i === cur) return;
+    // Client-created ticket (Requested) -> staff click "Received": print it WITH the tear-away stub (step 1 only).
+    if (t.status === "Requested" && i === 0)
+      return apply(t, 0).then((nt) => setSlip(ps(nt, true)));
     if (!(i >= 3 && (cur === U || i > cur))) return apply(t, i); // going back, or to steps 1-3: no questions
     setErr("");
     setV({
@@ -206,7 +210,7 @@ export default function Repairs() {
               <Btn v="g" className="!py-1" onClick={() => setEd(t)}>
                 ✎ Edit
               </Btn>
-              <Btn v="g" className="!py-1" onClick={() => setSlip(ps(t))}>
+              <Btn v="g" className="!py-1" onClick={() => setSlip(ps(t, t.status === "Received"))}>
                 Print
               </Btn>
             </div>

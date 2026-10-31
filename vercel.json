@@ -37,6 +37,10 @@
     {
       "path": "/api/keepalive",
       "schedule": "0 6 */5 * *"
+    },
+    {
+      "path": "/api/b2b-due",
+      "schedule": "0 5 * * *"
     }
   ]
 }

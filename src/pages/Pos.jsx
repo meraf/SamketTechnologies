@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   useDB,
   save,
@@ -10,11 +10,32 @@ import {
   normPhone,
   alertStaff,
 } from "../db";
-import { Card, Btn, In, Sel, Tag, Scan, Gate, saleSlip, Page } from "../ui";
+import {
+  Card,
+  Btn,
+  In,
+  Sel,
+  Tag,
+  Scan,
+  Gate,
+  saleSlip,
+  Page,
+  condTag,
+} from "../ui";
 const E = { n: "", p: "", d: 0, m: "Cash" };
 // One cart, one receipt. A cart line is either
 //  - a tracked unit (picked from stock, its serial is fixed, qty 1), or
 //  - an untracked item with a quantity: Qty 3 shows "Serial Number #1..#3" so every unit gets its own serial.
+const specOf = (u, i) =>
+  [
+    u.ram || i.ram,
+    u.storage || i.storage,
+    (u.cond || i.cond) === "Used" && (u.condNote || i.condNote)
+      ? `Used: ${u.condNote || i.condNote}`
+      : u.cond || i.cond,
+  ]
+    .filter(Boolean)
+    .join(" / ");
 const fit = (a, n) => Array.from({ length: n }, (_, i) => a[i] || "");
 export default function Pos() {
   const d = useDB(),
@@ -24,7 +45,8 @@ export default function Pos() {
     [pick, setPick] = useState(null),
     [sel, setSel] = useState([]),
     [done, setDone] = useState(null),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    cartRef = useRef();
   const items = d.item.filter((i) =>
     (i.name + i.cat).toLowerCase().includes(q.toLowerCase()),
   );
@@ -47,17 +69,39 @@ export default function Pos() {
     q: 1,
     imeis: [""],
     tag: u && u.tag,
+    unitId: u && u.id,
+    ram: u ? u.ram || i.ram || "" : "",
+    storage: u ? u.storage || i.storage || "" : "",
+    cond: u ? u.cond || i.cond || "" : "",
+    condNote: u ? u.condNote || i.condNote || "" : "",
+    spec: u ? specOf(u, i) : "",
   });
   const addMany = (i, us) => {
     setCart((c) => [...c, ...(us.length ? us : [null]).map((u) => line(i, u))]);
+    if (us.length) setTimeout(() => cartRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
     setPick(null);
     setSel([]);
   };
-  const click = (i) =>
-    i.ser
-      ? (setSel([]), setPick(i))
-      : (stock(d, i) <= 0 && !confirm("No stock recorded. Add anyway?")) ||
-        addMany(i, []);
+  // Total quantity of an item in the cart (all tracked units + the single merged line of an untracked item).
+  const inCart = (i) =>
+    cart.filter((l) => l.itemId === i.id).reduce((a, l) => a + l.q, 0);
+  // One click = one unit. Untracked items merge into ONE cart line whose quantity goes up;
+  // tracked items open the variant picker so the exact serial / IMEI unit is chosen.
+  const add = (i) => {
+    if (i.ser) return setSel([]), setPick(i);
+    const ex = cart.find((l) => l.itemId === i.id && !l.serial);
+    if (stock(d, i) <= (ex ? ex.q : 0) && !confirm("No more stock recorded. Add anyway?"))
+      return;
+    ex ? setQty(ex, ex.q + 1) : addMany(i, []);
+  };
+  const remove = (i) => {
+    const ls = cart.filter((l) => l.itemId === i.id);
+    if (!ls.length) return;
+    const l = ls[ls.length - 1];
+    l.serial || l.q <= 1
+      ? setCart(cart.filter((x) => x.k !== l.k))
+      : setQty(l, l.q - 1);
+  };
   const scan = (s) => {
     const u = d.unit.find((x) => x.serial === s && x.status === "in_stock");
     u
@@ -156,27 +200,56 @@ export default function Pos() {
           />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {items.map((i) => {
-              const n = stock(d, i);
+              const n = stock(d, i),
+                c = inCart(i);
               return (
-                <button
+                <div
                   key={i.id}
-                  onClick={() => click(i)}
-                  className="rounded-2xl border border-white/30 bg-white/60 p-4 text-left shadow transition hover:-translate-y-1 hover:shadow-xl active:scale-95 dark:border-white/10 dark:bg-white/5"
+                  className={`flex flex-col rounded-2xl border bg-white/60 p-3 shadow transition dark:bg-white/5 ${c ? "border-orange-500" : "border-white/30 dark:border-white/10"}`}
                 >
-                  <b className="block">{i.name}</b>
-                  <span className="text-sm text-slate-500">{mn(i.price)}</span>
-                  <div className="mt-1 flex gap-1">
-                    <Tag c={n <= (i.min || 0) ? "bad" : "ok"}>{n} in stock</Tag>
-                    {i.ser && <Tag>S/N</Tag>}
+                  <button
+                    type="button"
+                    onClick={() => add(i)}
+                    className="flex-1 text-left transition active:scale-95"
+                  >
+                    <b className="block">{i.name}</b>
+                    <span className="text-sm text-slate-500">{mn(i.price)}</span>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <Tag c={n <= (i.min || 0) ? "bad" : "ok"}>{n} in stock</Tag>
+                      {i.ser && <Tag>S/N</Tag>}
+                      {i.cond && <Tag c={condTag(i.cond)}>{i.cond}</Tag>}
+                    </div>
+                  </button>
+                  <div className="mt-3 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      aria-label={`Remove ${i.name} from cart`}
+                      title="Remove from Cart"
+                      disabled={!c}
+                      onClick={() => remove(i)}
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-400/40 text-lg font-bold transition hover:bg-red-500/10 active:scale-90 disabled:opacity-30"
+                    >
+                      −
+                    </button>
+                    <span className="min-w-6 text-center font-bold">{c}</span>
+                    <button
+                      type="button"
+                      aria-label={`Add ${i.name} to cart`}
+                      onClick={() => add(i)}
+                      className="flex h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-full bg-gradient-to-br from-orange-500 to-pink-600 px-2 text-xs font-bold text-white transition active:scale-95"
+                    >
+                      <span className="text-base leading-none">+</span>
+                      <span className="truncate">Add to Cart</span>
+                    </button>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
         </div>
         <Card className="h-fit space-y-3">
-          <div className="flex items-center">
-            <h2 className="flex-1 text-xl font-bold">Cart</h2>
+          <div ref={cartRef} className="flex items-center scroll-mt-20">
+            <h2 className="flex-1 text-xl font-bold">🛒 Cart</h2>
             {!!cart.length && (
               <>
                 <Tag>
@@ -204,6 +277,7 @@ export default function Pos() {
                     {l.serial && (
                       <span className="block font-mono text-xs font-normal text-slate-500">
                         S/N {l.serial}
+                        {l.spec && <span className="font-sans"> · {l.spec}</span>}
                       </span>
                     )}
                   </b>
@@ -216,13 +290,40 @@ export default function Pos() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {!l.serial && (
-                    <In
-                      label="Qty"
-                      type="number"
-                      min="1"
-                      value={l.q}
-                      onChange={(e) => setQty(l, e.target.value)}
-                    />
+                    <div>
+                      <div className="text-xs font-semibold text-slate-500">
+                        Qty
+                      </div>
+                      <div className="mt-1 flex items-center gap-1">
+                        <button
+                          type="button"
+                          aria-label="Remove one"
+                          onClick={() =>
+                            l.q <= 1
+                              ? setCart(cart.filter((x) => x.k !== l.k))
+                              : setQty(l, l.q - 1)
+                          }
+                          className="grid h-9 w-9 place-items-center rounded-full border border-slate-400/40 font-bold"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          min="1"
+                          value={l.q}
+                          onChange={(e) => setQty(l, e.target.value)}
+                          className="w-14 rounded-xl border border-slate-400/30 bg-white/50 px-1 py-2 text-center text-sm dark:bg-white/5"
+                        />
+                        <button
+                          type="button"
+                          aria-label="Add one"
+                          onClick={() => setQty(l, l.q + 1)}
+                          className="grid h-9 w-9 place-items-center rounded-full border border-slate-400/40 font-bold"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
                   )}
                   <In
                     label="Unit price"
@@ -328,21 +429,24 @@ export default function Pos() {
       </div>
       {pick && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm">
-          <Card className="max-h-[80vh] w-full max-w-sm overflow-auto !bg-white dark:!bg-slate-900">
-            <h3 className="mb-1 font-bold">Pick units of {pick.name}</h3>
+          <Card className="max-h-[85vh] w-full max-w-md overflow-auto !bg-white dark:!bg-slate-900">
+            <h3 className="mb-1 font-bold">Select variant: {pick.name}</h3>
             <p className="mb-3 text-xs text-slate-500">
-              Tick every unit being sold. Each keeps its own serial number and
-              warranty.
+              Choose the exact unit(s) being sold. Each keeps its own serial /
+              IMEI and warranty. You can tick several different units.
             </p>
             {free(pick).map((u) => {
-              const on = sel.includes(u.id);
+              const on = sel.includes(u.id),
+                cond = u.cond || pick.cond,
+                note = u.condNote || pick.condNote;
               return (
                 <label
                   key={u.id}
-                  className={`mb-2 flex cursor-pointer items-center gap-3 rounded-xl border p-3 font-mono text-sm transition ${on ? "border-orange-500 bg-orange-500/10" : "border-slate-400/30 hover:bg-orange-500/5"}`}
+                  className={`mb-2 flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition ${on ? "border-orange-500 bg-orange-500/10" : "border-slate-400/30 hover:bg-orange-500/5"}`}
                 >
                   <input
                     type="checkbox"
+                    className="mt-1"
                     checked={on}
                     onChange={() =>
                       setSel(
@@ -350,7 +454,23 @@ export default function Pos() {
                       )
                     }
                   />
-                  {u.serial}
+                  <span className="min-w-0 flex-1">
+                    <b className="block">{pick.name}</b>
+                    <span className="block break-all font-mono text-xs">
+                      S/N · IMEI: {u.serial}
+                    </span>
+                    <span className="mt-1 flex flex-wrap gap-1.5">
+                      <Tag>RAM {u.ram || pick.ram || "—"}</Tag>
+                      <Tag>Storage {u.storage || pick.storage || "—"}</Tag>
+                      <Tag c={condTag(cond)}>
+                        {cond
+                          ? cond === "Used" && note
+                            ? `Used: ${note}`
+                            : cond
+                          : "Condition —"}
+                      </Tag>
+                    </span>
+                  </span>
                 </label>
               );
             })}
@@ -367,7 +487,7 @@ export default function Pos() {
                   )
                 }
               >
-                Add {sel.length || ""} to cart
+                OK{sel.length ? ` · add ${sel.length}` : ""}
               </Btn>
               <Btn v="g" onClick={() => setPick(null)}>
                 Cancel
@@ -375,6 +495,21 @@ export default function Pos() {
             </div>
           </Card>
         </div>
+      )}
+      {!!units && (
+        <button
+          type="button"
+          aria-label={`Cart, ${units} items`}
+          onClick={() =>
+            cartRef.current?.scrollIntoView({ behavior: "smooth" })
+          }
+          className="fixed bottom-5 right-5 z-40 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-orange-500 to-pink-600 text-2xl text-white shadow-xl lg:hidden"
+        >
+          🛒
+          <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-slate-900 px-1 text-xs font-bold text-white">
+            {units}
+          </span>
+        </button>
       )}
       {done && (
         <Gate

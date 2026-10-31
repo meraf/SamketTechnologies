@@ -4,6 +4,15 @@ html,body{max-width:100%;overflow-x:hidden}
 img,video,iframe,svg{max-width:100%}
 .grid>*,.flex>*{min-width:0}
 input,select,textarea{min-width:0;max-width:100%}
-@media print{body *{visibility:hidden}#sheet,#sheet *{visibility:visible}#sheet{position:fixed;left:0;top:0;background:#fff}}
+/* Printing: #print-root is a direct child of <body> (React portal). Everything else is removed from layout while printing, so the
+   sheet is the ONLY content: no blank trailing pages and no position:fixed element repeated on every page. */
+#print-root{display:none}
+@media print{
+ html,body{height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important;margin:0!important;padding:0!important}
+ body>*:not(#print-root){display:none!important}
+ #print-root{display:block!important;position:static!important;margin:0;padding:0}
+ .a4page{break-inside:avoid;break-after:avoid;page-break-after:avoid;break-before:avoid}
+ * {-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 @keyframes pop{0%{transform:scale(.3);opacity:0}70%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
 .pop{animation:pop .45s ease-out}

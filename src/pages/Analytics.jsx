@@ -51,22 +51,17 @@ const rows = (d, a, b) => [
       who: t.name,
       raw: t,
     })),
-  ...d.b2b
-    .filter(
-      (x) =>
-        +x.amount > 0 &&
-        !["Quote", "Cancelled"].includes(x.status) &&
-        (x.date || x.ts) >= a &&
-        (x.date || x.ts) < b,
-    )
-    .map((x) => ({
+  // B2B income = payments staff confirmed as received (not the contract value).
+  ...d.b2bpay
+    .filter((p) => p.date >= a && p.date < b)
+    .map((p) => ({
       k: "B2B",
-      t: x.date || x.ts,
-      code: x.inv || x.id.slice(-6).toUpperCase(),
-      amt: +x.amount,
-      cost: +x.cost || 0,
-      who: x.company,
-      raw: x,
+      t: p.date,
+      code: p.rc || p.id.slice(-6).toUpperCase(),
+      amt: +p.amount,
+      cost: +p.cost || 0,
+      who: p.company,
+      raw: p,
     })),
 ];
 const KV = ({ o }) => (

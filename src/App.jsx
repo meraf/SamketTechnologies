@@ -18,7 +18,7 @@ import Claims from './pages/Claims'
 import Cash from './pages/Cash'
 import Reports from './pages/Reports'
 import Analytics from './pages/Analytics'
-import B2b from './pages/B2b'
+import B2b,{DueBanner} from './pages/B2b'
 import Business from './pages/Business'
 import SyncPage from './pages/Sync'
 const Theme=()=><button aria-label="Theme" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-500/10 transition hover:scale-110" onClick={()=>{const d=document.documentElement.classList.toggle('dark');localStorage.theme=d?'dark':'light'}}>🌓</button>
@@ -56,7 +56,7 @@ function Staff(){const [u,setU]=useState(sessionUser),s=useSync(),loc=useLocatio
  const out=()=>{sessionStorage.removeItem('u');setU(null)}
  // Sync runs silently in the background for everyone; only admins get the indicator and the Sync page.
  const admin=u.role==='admin'
- return <UserCtx.Provider value={u}><Bg><Bar home="/staff/pos" items={sn.filter(([a,,p])=>can(u,p||a)).map(([a,t])=>[a,t,a==='repairs'])} extra={<button className="w-full rounded-xl border border-slate-400/30 px-4 py-3 text-sm font-semibold" onClick={out}>Sign out ({u.role})</button>} right={<><Link to={admin?'sync':'#'} onClick={e=>{if(!admin){e.preventDefault();sync()}}} className="flex items-center gap-1.5 rounded-full bg-slate-500/10 px-2.5 py-1 text-xs font-semibold"><span className={`h-2 w-2 rounded-full ${!s.on||s.e?'bg-red-500':s.p||s.c||s.o?'animate-pulse bg-amber-500':'bg-emerald-500'}`}/><span className="hidden sm:inline">{s.on?'Online':'Offline'} · </span>{s.e?({'401':'Wrong sync key','net':'Cannot reach server'}[s.e]||'Server error '+s.e):s.c?s.c+' conflicts':s.p||s.o?(s.p+s.o)+' to sync':'synced'}</Link><InstallButton label="Install Staff app"/><Theme/><button className="hidden text-xs text-slate-500 lg:block" onClick={out}>Exit</button></>}/><Outlet/></Bg></UserCtx.Provider>}
+ return <UserCtx.Provider value={u}><Bg><Bar home="/staff/pos" items={sn.filter(([a,,p])=>can(u,p||a)).map(([a,t])=>[a,t,a==='repairs'])} extra={<button className="w-full rounded-xl border border-slate-400/30 px-4 py-3 text-sm font-semibold" onClick={out}>Sign out ({u.role})</button>} right={<><Link to={admin?'sync':'#'} onClick={e=>{if(!admin){e.preventDefault();sync()}}} className="flex items-center gap-1.5 rounded-full bg-slate-500/10 px-2.5 py-1 text-xs font-semibold"><span className={`h-2 w-2 rounded-full ${!s.on||s.e?'bg-red-500':s.p||s.c||s.o?'animate-pulse bg-amber-500':'bg-emerald-500'}`}/><span className="hidden sm:inline">{s.on?'Online':'Offline'} · </span>{s.e?({'401':'Wrong sync key','net':'Cannot reach server'}[s.e]||'Server error '+s.e):s.c?s.c+' conflicts':s.p||s.o?(s.p+s.o)+' to sync':'synced'}</Link><InstallButton label="Install Staff app"/><Theme/><button className="hidden text-xs text-slate-500 lg:block" onClick={out}>Exit</button></>}/>{can(u,'b2b')&&<DueBanner/>}<Outlet/></Bg></UserCtx.Provider>}
 // If any page crashes, show a message with a repair button instead of a blank white screen.
 class Boundary extends Component{state={e:null}
  static getDerivedStateFromError(e){return{e}}

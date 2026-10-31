@@ -11,6 +11,8 @@ import {
   Page,
   ItemImg,
   shrink,
+  CONDS,
+  condLabel,
 } from "../ui";
 export default function Inventory() {
   const d = useDB(),
@@ -20,8 +22,13 @@ export default function Inventory() {
     [q, setQ] = useState("");
   const add = async (e) => {
     e.preventDefault();
+    if (!CONDS.includes(f.cond))
+      return alert("Choose the condition: Brand New, Refurbished or Used.");
+    if (f.cond === "Used" && !String(f.condNote || "").trim())
+      return alert("Describe the degree of use / wear for a Used item.");
     const i = await save("item", {
       ...f,
+      condNote: f.cond === "Used" ? f.condNote.trim() : "",
       price: +f.price || 0,
       cost: +f.cost || 0,
       min: +f.min || 0,
@@ -39,6 +46,10 @@ export default function Inventory() {
     setSer([...ser, s]);
   };
   const receive = async () => {
+    if (rc.ser && !CONDS.includes(f.cond))
+      return alert("Choose the condition of these units.");
+    if (rc.ser && f.cond === "Used" && !String(f.condNote || "").trim())
+      return alert("Describe the degree of use / wear for Used units.");
     if (rc.ser)
       for (const s of ser)
         await save("unit", {
@@ -48,6 +59,10 @@ export default function Inventory() {
           serial: s,
           status: "in_stock",
           cost: +f.ucost || rc.cost || 0,
+          ram: (f.ram || "").trim(),
+          storage: (f.storage || "").trim(),
+          cond: f.cond,
+          condNote: f.cond === "Used" ? f.condNote.trim() : "",
           receivedDate: Date.now(),
         });
     else await save("move", { item: rc.id, q: +f.rq || 0, ref: "receive" });
@@ -102,15 +117,20 @@ export default function Inventory() {
             />
             <In label="Default cost" type="number" {...b("cost")} />
             <In label="Low-stock limit" type="number" {...b("min")} />
-            <In label="Processor (optional)" {...b("cpu")} />
-            <In label="RAM (optional)" {...b("ram")} />
-            <In label="Storage (optional)" {...b("storage")} />
-            <In label="Camera (optional)" {...b("camera")} />
             <In label="Default warranty (days)" type="number" {...b("war")} />
             <In label="Processor (optional)" {...b("cpu")} />
-            <In label="RAM (optional)" {...b("ram")} />
-            <In label="Storage (optional)" {...b("storage")} />
+            <In label="RAM (optional)" placeholder="e.g. 8GB" {...b("ram")} />
+            <In label="Storage (optional)" placeholder="e.g. 256GB" {...b("storage")} />
+            <In label="Screen type (optional)" placeholder="e.g. 6.1 OLED" {...b("screen")} />
             <In label="Camera (optional)" {...b("camera")} />
+            <Sel label="Condition *" o={["Select…", ...CONDS]} {...b("cond")} />
+            {f.cond === "Used" && (
+              <In
+                label="Degree of use / wear *"
+                placeholder="e.g. Grade B, light scratches, 1 year old"
+                {...b("condNote")}
+              />
+            )}
             <Sel label="Show on website" o={["yes", "no"]} {...b("pub")} />
             {!f.id && f.ser === "no" && (
               <In label="Opening stock" type="number" {...b("qty")} />
@@ -160,6 +180,14 @@ export default function Inventory() {
           {rc.ser ? (
             <>
               <In label="Cost per unit" type="number" {...b("ucost")} />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <In label="RAM (this batch)" {...b("ram")} />
+                <In label="Storage (this batch)" {...b("storage")} />
+                <Sel label="Condition *" o={["Select…", ...CONDS]} {...b("cond")} />
+                {f.cond === "Used" && (
+                  <In label="Degree of use / wear *" {...b("condNote")} />
+                )}
+              </div>
               <Scan
                 onScan={addSerial}
                 label="Scan or type each IMEI / serial, press Enter"
@@ -207,6 +235,7 @@ export default function Inventory() {
                   <b>{i.name}</b>
                   <div className="text-sm text-slate-500">
                     {i.cat} · {mn(i.price)} · {i.war || 0}d warranty
+                    {i.cond ? " · " + condLabel(i) : ""}
                   </div>
                 </div>
                 <Tag c={low ? "bad" : "ok"}>
@@ -222,6 +251,8 @@ export default function Inventory() {
                       <div key={u.id} className="font-mono">
                         {u.tag && u.tag + " · "}
                         {u.serial} · {u.status}
+                        {u.cond ? " · " + condLabel(u) : ""}
+                        {u.ram || u.storage ? " · " + [u.ram, u.storage].filter(Boolean).join("/") : ""}
                         {u.until ? " · warranty " + u.until : ""}
                       </div>
                     ))}
@@ -232,7 +263,12 @@ export default function Inventory() {
                   className="!py-1"
                   onClick={() => {
                     setRc(i);
-                    setF({});
+                    setF({
+                      ram: i.ram,
+                      storage: i.storage,
+                      cond: i.cond,
+                      condNote: i.condNote,
+                    });
                   }}
                 >
                   Receive
