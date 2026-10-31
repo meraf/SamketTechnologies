@@ -22,7 +22,9 @@ import {
   Page,
   condTag,
 } from "../ui";
-const E = { n: "", p: "", d: 0, m: "Cash" };
+import { BankPanel, bankFields, bankLabel } from "../bankpay";
+const E = { n: "", p: "", d: 0, m: "Cash" },
+  BK = { bank: "Telebirr", other: "", ref: "", verify: null };
 // One cart, one receipt. A cart line is either
 //  - a tracked unit (picked from stock, its serial is fixed, qty 1), or
 //  - an untracked item with a quantity: Qty 3 shows "Serial Number #1..#3" so every unit gets its own serial.
@@ -46,6 +48,7 @@ export default function Pos() {
     [sel, setSel] = useState([]),
     [done, setDone] = useState(null),
     [busy, setBusy] = useState(false),
+    [bk, setBk] = useState(BK),
     cartRef = useRef();
   const items = d.item.filter((i) =>
     (i.name + i.cat).toLowerCase().includes(q.toLowerCase()),
@@ -140,8 +143,11 @@ export default function Pos() {
       d.cust.find((x) => normPhone(x.phone) === normPhone(p));
     setC({ ...c, p, n: c.n || (k && k.name) || "" });
   };
+  const bank = c.m === "Bank transfer";
   const finish = async () => {
     if (busy) return;
+    // Verification never blocks checkout, but the bank name must be known for the record.
+    if (bank && !bankLabel(bk)) return alert("Type the bank name.");
     setBusy(true);
     try {
       const cid = await upCust(c.n, c.p),
@@ -163,6 +169,7 @@ export default function Pos() {
         total,
         disc: +c.d || 0,
         pay: c.m,
+        ...(bank ? bankFields(bk) : {}),
         date: Date.now(),
       });
       for (const l of L)
@@ -177,10 +184,11 @@ export default function Pos() {
           });
         } else await save("move", { item: l.itemId, q: -l.q, ref: s.id });
       alertStaff(
-        `Sale ${s.code}: ${mn(total)} (${c.m}) · ${L.reduce((a, l) => a + l.q, 0)} item(s)${c.n ? " · " + c.n : ""}`,
+        `Sale ${s.code}: ${mn(total)} (${bank ? bankLabel(bk) + (s.verify.status === "verified" ? ", receipt verified" : s.verify.status === "failed" ? ", RECEIPT NOT VERIFIED" : ", not verified") : c.m}) · ${L.reduce((a, l) => a + l.q, 0)} item(s)${c.n ? " · " + c.n : ""}`,
       );
       setCart([]);
       setC(E);
+      setBk(BK);
       setDone(s);
     } finally {
       setBusy(false);
@@ -410,11 +418,20 @@ export default function Pos() {
             />
             <Sel
               label="Payment"
-              o={["Cash", "Bank transfer", "Telebirr", "CBE Birr"]}
+              o={["Cash", "Bank transfer"]}
               value={c.m}
               onChange={(e) => setC({ ...c, m: e.target.value })}
             />
           </div>
+          {bank && (
+            <BankPanel
+              value={bk}
+              onChange={setBk}
+              total={total}
+              phone={c.p}
+              accts={d.bankacct}
+            />
+          )}
           <div className="text-3xl font-extrabold tracking-tight">
             {mn(total)}
           </div>

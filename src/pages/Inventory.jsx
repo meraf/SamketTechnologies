@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useDB, save, stock, mn, day, code, PFX } from "../db";
 import {
   Card,
@@ -20,15 +20,19 @@ export default function Inventory() {
     [rc, setRc] = useState(null),
     [ser, setSer] = useState([]),
     [q, setQ] = useState("");
+  const seen = useRef(new Set()); // serials registered in this session (guards rapid double entry)
   const add = async (e) => {
     e.preventDefault();
-    if (!CONDS.includes(f.cond))
+    const cond = CONDS.includes(f.cond) ? f.cond : "";
+    // Tracked items get condition / RAM / storage / cost per unit when received; untracked items need it here.
+    if (f.ser === "no" && !cond)
       return alert("Choose the condition: Brand New, Refurbished or Used.");
-    if (f.cond === "Used" && !String(f.condNote || "").trim())
+    if (cond === "Used" && f.ser === "no" && !String(f.condNote || "").trim())
       return alert("Describe the degree of use / wear for a Used item.");
     const i = await save("item", {
       ...f,
-      condNote: f.cond === "Used" ? f.condNote.trim() : "",
+      cond,
+      condNote: cond === "Used" ? String(f.condNote || "").trim() : "",
       price: +f.price || 0,
       cost: +f.cost || 0,
       min: +f.min || 0,
@@ -38,34 +42,59 @@ export default function Inventory() {
     });
     if (!f.id && !i.ser && +f.qty)
       await save("move", { item: i.id, q: +f.qty, ref: "opening" });
+    if (!f.id && i.ser) {
+      // straight on to entering the individual units (each with its own cost, RAM, storage, condition and serial)
+      setRc(i);
+      setSer([]);
+      seen.current = new Set();
+      setF({
+        ram: i.ram,
+        storage: i.storage,
+        cond: i.cond,
+        condNote: i.condNote,
+        ucost: i.cost || "",
+      });
+      return;
+    }
     setF(null);
   };
-  const addSerial = (s) => {
-    if (ser.includes(s) || d.unit.some((u) => u.serial === s))
-      return alert("Serial already recorded: " + s);
-    setSer([...ser, s]);
+  // Register ONE unit immediately with the current variant settings, then the serial field is cleared and refocused.
+  // Returns false when something is missing so the typed serial stays in the box.
+  const registerUnit = (s) => {
+    if (seen.current.has(s) || d.unit.some((u) => u.serial === s))
+      return alert("Serial already recorded: " + s), false;
+    if (!CONDS.includes(f.cond))
+      return alert("Choose the condition of this unit first."), false;
+    const note = String(f.condNote || "").trim();
+    if (f.cond === "Used" && !note)
+      return alert("Describe the degree of use / wear for this Used unit."), false;
+    const cost =
+      f.ucost !== "" && f.ucost != null ? +f.ucost : rc.cost || 0;
+    if (isNaN(cost) || cost < 0) return alert("Enter a valid cost."), false;
+    seen.current.add(s);
+    const u = {
+      id: "u:" + s,
+      itemId: rc.id,
+      serial: s,
+      status: "in_stock",
+      cost,
+      ram: String(f.ram || "").trim(),
+      storage: String(f.storage || "").trim(),
+      cond: f.cond,
+      condNote: f.cond === "Used" ? note : "",
+      receivedDate: Date.now(),
+    };
+    setSer((a) => [{ ...u, tag: "…" }, ...a]);
+    code(PFX[rc.cat] || "I").then((tag) => save("unit", { ...u, tag }));
+    return true;
+  };
+  const undoUnit = (u) => {
+    seen.current.delete(u.serial);
+    setSer((a) => a.filter((x) => x.id !== u.id));
+    save("unit", { ...u, del: true });
   };
   const receive = async () => {
-    if (rc.ser && !CONDS.includes(f.cond))
-      return alert("Choose the condition of these units.");
-    if (rc.ser && f.cond === "Used" && !String(f.condNote || "").trim())
-      return alert("Describe the degree of use / wear for Used units.");
-    if (rc.ser)
-      for (const s of ser)
-        await save("unit", {
-          id: "u:" + s,
-          itemId: rc.id,
-          tag: await code(PFX[rc.cat] || "I"),
-          serial: s,
-          status: "in_stock",
-          cost: +f.ucost || rc.cost || 0,
-          ram: (f.ram || "").trim(),
-          storage: (f.storage || "").trim(),
-          cond: f.cond,
-          condNote: f.cond === "Used" ? f.condNote.trim() : "",
-          receivedDate: Date.now(),
-        });
-    else await save("move", { item: rc.id, q: +f.rq || 0, ref: "receive" });
+    await save("move", { item: rc.id, q: +f.rq || 0, ref: "receive" });
     setRc(null);
     setSer([]);
     setF(null);
@@ -123,7 +152,11 @@ export default function Inventory() {
             <In label="Storage (optional)" placeholder="e.g. 256GB" {...b("storage")} />
             <In label="Screen type (optional)" placeholder="e.g. 6.1 OLED" {...b("screen")} />
             <In label="Camera (optional)" {...b("camera")} />
-            <Sel label="Condition *" o={["Select…", ...CONDS]} {...b("cond")} />
+            <Sel
+              label={f.ser === "no" ? "Condition *" : "Default condition (each unit sets its own)"}
+              o={["Select…", ...CONDS]}
+              {...b("cond")}
+            />
             {f.cond === "Used" && (
               <In
                 label="Degree of use / wear *"
@@ -179,45 +212,70 @@ export default function Inventory() {
           <h2 className="text-lg font-bold">Receive: {rc.name}</h2>
           {rc.ser ? (
             <>
-              <In label="Cost per unit" type="number" {...b("ucost")} />
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <In label="RAM (this batch)" {...b("ram")} />
-                <In label="Storage (this batch)" {...b("storage")} />
+              <p className="text-sm text-slate-500">
+                Set this variant (cost, RAM, storage, condition), then scan or type each
+                serial / IMEI and press <b>Enter</b> or <b>Next / Add Another</b>. Every unit is saved
+                straight away with these settings and the serial box clears for the next one. Change
+                any setting (for example a different condition note for a Used unit) between entries.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <In label="Cost for this unit (ETB)" type="number" {...b("ucost")} />
+                <In label="RAM" {...b("ram")} />
+                <In label="Storage" {...b("storage")} />
                 <Sel label="Condition *" o={["Select…", ...CONDS]} {...b("cond")} />
                 {f.cond === "Used" && (
-                  <In label="Degree of use / wear *" {...b("condNote")} />
+                  <In
+                    label="Condition rating / wear *"
+                    placeholder="e.g. Grade B, light scratches"
+                    {...b("condNote")}
+                  />
                 )}
               </div>
               <Scan
-                onScan={addSerial}
-                label="Scan or type each IMEI / serial, press Enter"
+                onScan={registerUnit}
+                next="Next / Add Another"
+                label="Serial / IMEI (scan or type, then Enter)"
               />
-              <div className="flex flex-wrap gap-2">
-                {ser.map((s) => (
-                  <Tag key={s}>
-                    {s}{" "}
-                    <button onClick={() => setSer(ser.filter((x) => x !== s))}>
-                      ✕
-                    </button>
-                  </Tag>
-                ))}
-              </div>
+              {!!ser.length && (
+                <div className="space-y-1.5">
+                  <div className="text-xs font-semibold text-slate-500">
+                    {ser.length} unit(s) added this session
+                  </div>
+                  {ser.map((u) => (
+                    <div
+                      key={u.id}
+                      className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-500/10 px-3 py-1.5 text-sm"
+                    >
+                      <span className="font-mono">{u.serial}</span>
+                      <span className="text-slate-500">
+                        {[u.ram, u.storage].filter(Boolean).join(" / ") || "no specs"} ·{" "}
+                        {condLabel(u)} · {u.cost} ETB
+                      </span>
+                      <button
+                        className="ml-auto text-xs text-red-500 underline"
+                        onClick={() => undoUnit(u)}
+                      >
+                        Undo
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <In label="Quantity" type="number" {...b("rq")} />
           )}
           <div className="flex gap-2">
-            <Btn onClick={receive} disabled={rc.ser && !ser.length}>
-              Add {rc.ser ? ser.length + " unit(s)" : "stock"}
-            </Btn>
+            {!rc.ser && <Btn onClick={receive}>Add stock</Btn>}
             <Btn
-              v="g"
+              v={rc.ser ? undefined : "g"}
               onClick={() => {
                 setRc(null);
                 setSer([]);
+                setF(null);
               }}
             >
-              Cancel
+              {rc.ser ? "Done" : "Cancel"}
             </Btn>
           </div>
         </Card>
@@ -263,7 +321,10 @@ export default function Inventory() {
                   className="!py-1"
                   onClick={() => {
                     setRc(i);
+                    setSer([]);
+                    seen.current = new Set();
                     setF({
+                      ucost: i.cost || "",
                       ram: i.ram,
                       storage: i.storage,
                       cond: i.cond,

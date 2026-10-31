@@ -90,6 +90,7 @@ const invSlip = (x) => ({
     "Payment is registered only after Samket staff confirm receipt of funds.",
     "Terms: as agreed in the signed contract",
   ].filter((l) => l !== ""),
+  stubPos: "bottom",
   stub: [
     "B2B " + (x.inv || x.id.slice(-6).toUpperCase()),
     x.company,
@@ -121,6 +122,7 @@ const rcSlip = (x, p) => ({
     line("Received by", p.by),
     "Thank you for your business.",
   ].filter((l) => l !== ""),
+  stubPos: "bottom",
   stub: [
     p.rc,
     x.company,

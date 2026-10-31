@@ -22,11 +22,12 @@ export const Timeline=({status,onStep,hist=[]})=>{const un=status===UNFIXED,last
   {i<last&&<div className={`absolute left-1/2 top-4 h-0.5 w-full transition-all duration-700 ${i===last-1?(un?'bg-red-500/60':'bg-slate-400/20'):i<n?'bg-orange-500':'bg-slate-400/30'}`}/>}
   <button type="button" disabled={!onStep} onClick={()=>onStep&&onStep(i)} aria-label={s} className={`relative mx-auto grid h-9 w-9 place-items-center rounded-full text-sm font-bold transition-all duration-500 ${on?(bad?'bg-red-600 text-white':'bg-gradient-to-br from-orange-500 to-pink-600 text-white'):'bg-slate-300 dark:bg-slate-700'} ${cur?`scale-125 ring-4 ${bad?'ring-red-500/30':'ring-orange-500/30'}`:''} ${onStep?'cursor-pointer hover:scale-125 active:scale-95':'cursor-default'}`}>{bad?'✕':on&&(un||i<n)?'✓':i+1}</button>
   <div className={`mt-2 truncate text-[10px] font-semibold sm:text-[11px] ${on?(bad?'text-red-500':''):'text-slate-400'}`}>{s}</div></li>})}</ol>}
-export function Scan({onScan,label='Scan or type serial / IMEI / code'}){const [v,setV]=useState(''),[cam,setCam]=useState(false),r=useRef()
+export function Scan({onScan,label='Scan or type serial / IMEI / code',next}){const [v,setV]=useState(''),[cam,setCam]=useState(false),r=useRef(),fr=useRef()
  useEffect(()=>{if(!cam)return;let s,stop;(async()=>{try{const det=new BarcodeDetector();s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});r.current.srcObject=s;await r.current.play()
   const tick=async()=>{if(stop)return;const x=await det.detect(r.current).catch(()=>[]);if(x[0]){onScan(x[0].rawValue);setCam(false)}else setTimeout(tick,300)};tick()}catch{setCam(false);alert('Camera scanning is not supported on this device. Use a USB/Bluetooth scanner or type the code.')}})()
   return()=>{stop=1;s&&s.getTracks().forEach(t=>t.stop())}},[cam])
- return <div><form className="flex items-end gap-2" onSubmit={e=>{e.preventDefault();v.trim()&&onScan(v.trim());setV('')}}><In cls="flex-1" label={label} value={v} onChange={e=>setV(e.target.value)}/><Btn v="g" type="button" onClick={()=>setCam(!cam)}>📷</Btn></form>{cam&&<video ref={r} className="mt-2 w-full rounded-xl" muted playsInline/>}</div>}
+ // Enter (or the optional "next" button) submits the code, clears the field and puts the cursor back in it for rapid continuous entry.
+ return <div><form ref={fr} className="flex items-end gap-2" onSubmit={e=>{e.preventDefault();if(v.trim()&&onScan(v.trim())!==false)setV('');setTimeout(()=>fr.current&&fr.current.querySelector('input')&&fr.current.querySelector('input').focus(),0)}}><In cls="flex-1" label={label} value={v} onChange={e=>setV(e.target.value)} autoComplete="off" enterKeyHint="next"/>{next&&<Btn type="submit">{next}</Btn>}<Btn v="g" type="button" onClick={()=>setCam(!cam)}>📷</Btn></form>{cam&&<video ref={r} className="mt-2 w-full rounded-xl" muted playsInline/>}</div>}
 // ---- item condition (stock form, POS variant picker, shop details) ----
 export const CONDS=['Brand New','Refurbished','Used']
 export const condLabel=o=>o&&o.cond?(o.cond==='Used'&&o.condNote?`Used (${o.condNote})`:o.cond):''
@@ -39,35 +40,45 @@ export function PrintSheet({page='A4 portrait',children}){
  useEffect(()=>{const s=document.createElement('style');s.textContent=`@page{margin:0;size:${page}}`;document.head.append(s);return()=>s.remove()},[page])
  return createPortal(<div id="print-root">{children}</div>,document.body)}
 const Rule=({a,cw})=><div>{'-'.repeat(a?50:cw<60?28:40)}</div>
+// A stub entry is either a plain line or a [label, value] pair.
+const sl=l=>Array.isArray(l)?`${l[0]}: ${l[1]}`:l
 export const Slip=({slip,w,copy})=>{const a=w==='a4',cw=a?138:+w,tear=slip.stub&&slip.stub.length>0
  return <div className="bg-white p-[4mm] font-mono leading-snug text-black" style={{width:cw+'mm',fontSize:a?12:cw<60?10:11,wordBreak:'break-word'}}>{copy&&<div className="mb-1 border-b border-black pb-0.5 text-center text-[10px] font-bold tracking-widest">{copy}</div>}<b>SAMKET TECHNOLOGIES</b><div>{slip.title}</div>{slip.lines.map((l,i)=>l==='--'?<Rule key={i} a={a} cw={cw}/>:l.startsWith('## ')?<div key={i} className="font-bold">{l.slice(3)}</div>:<div key={i}>{l}</div>)}
-  {tear&&<><div className="my-1 border-t-2 border-dashed border-black pt-0.5 text-center text-[9px]">✂ TEAR OFF · TAPE TO DEVICE</div>{slip.stub.map((l,i)=><div key={i} className={i===0?'text-base font-bold':''}>{l}</div>)}</>}</div>}
-/** One full A4 page (210x296 mm, fixed height so it can never spill onto a 2nd page). Main sheet on top; when slip.stub exists,
- *  a dashed cut line and the internal staff tear-away ticket sit at the bottom. */
-export const A4Receipt=({slip,copy})=>{const tear=slip.stub&&slip.stub.length>0
- return <div className="a4page" style={{width:'210mm',height:'296mm',boxSizing:'border-box',padding:'12mm',display:'flex',flexDirection:'column',background:'#fff',color:'#000',fontFamily:'ui-monospace,Menlo,Consolas,monospace',fontSize:13,lineHeight:1.45,overflow:'hidden',wordBreak:'break-word'}}>
-  <div style={{flex:1,minHeight:0,overflow:'hidden'}}>
+  {tear&&<><div className="my-1 border-t-2 border-dashed border-black pt-0.5 text-center text-[9px]">✂ TEAR OFF · TAPE TO DEVICE</div>{slip.stub.map((l,i)=><div key={i} className={i===0&&!Array.isArray(l)?'text-base font-bold':''}>{sl(l)}</div>)}</>}</div>}
+/** One full A4 page (210x296 mm, fixed height so it can never spill onto a 2nd page).
+ *  slip.stub present -> a tear-away stub. Default (repair tickets): a compact vertical strip attached to the RIGHT of the main receipt,
+ *  separated by a dashed cut line. slip.stubPos==='bottom' (B2B documents): a dashed cut line with the staff stub under the main sheet. */
+export const A4Receipt=({slip,copy})=>{const has=slip.stub&&slip.stub.length>0,right=has&&slip.stubPos!=='bottom',bottom=has&&!right
+ const main=<div style={{flex:1,minWidth:0,minHeight:0,overflow:'hidden'}}>
    {copy&&<div style={{textAlign:'center',fontSize:10,fontWeight:700,letterSpacing:'.2em',borderBottom:'1px solid #000',paddingBottom:2,marginBottom:8}}>{copy}</div>}
    <div style={{fontSize:24,fontWeight:800,letterSpacing:'.02em'}}>SAMKET TECHNOLOGIES</div>
    <div style={{fontSize:17,fontWeight:700,marginBottom:8}}>{slip.title}</div>
    {slip.lines.map((l,i)=>l==='--'?<hr key={i} style={{border:0,borderTop:'1px solid #000',margin:'6px 0'}}/>:l.startsWith('## ')?<div key={i} style={{fontWeight:700,fontSize:14,marginTop:4}}>{l.slice(3)}</div>:<div key={i}>{l||' '}</div>)}
   </div>
-  {tear&&<div style={{flex:'none',height:'74mm',marginTop:'5mm',borderTop:'2px dashed #000',paddingTop:'3mm',overflow:'hidden'}}>
-   <div style={{textAlign:'center',fontSize:10,fontWeight:700,letterSpacing:'.2em',marginBottom:6}}>✂ TEAR AWAY · INTERNAL STAFF COPY · KEEP WITH THE JOB</div>
-   {slip.stub.map((l,i)=><div key={i} style={i===0?{fontSize:20,fontWeight:800}:{}}>{l}</div>)}</div>}</div>}
+ return <div className="a4page" style={{width:'210mm',height:'296mm',boxSizing:'border-box',padding:'12mm',display:'flex',flexDirection:'column',background:'#fff',color:'#000',fontFamily:'ui-monospace,Menlo,Consolas,monospace',fontSize:13,lineHeight:1.45,overflow:'hidden',wordBreak:'break-word'}}>
+  {right?<div style={{display:'flex',alignItems:'stretch',minHeight:'105mm',maxHeight:'100%',overflow:'hidden'}}>{main}
+    <div style={{flex:'none',width:'52mm',marginLeft:'4mm',borderLeft:'2px dashed #000',paddingLeft:'4mm',position:'relative',display:'flex',flexDirection:'column',gap:'4mm',overflow:'hidden'}}>
+     <span style={{position:'absolute',left:-9,top:'4mm',background:'#fff',fontSize:15,lineHeight:1}}>✂</span>
+     <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',textAlign:'center'}}>TEAR HERE · SHOP STUB</div>
+     {slip.stub.map((l,i)=>Array.isArray(l)?<div key={i}><div style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em'}}>{l[0]}</div><div style={{fontSize:13,fontWeight:700}}>{l[1]}</div></div>:<div key={i} style={{fontWeight:700}}>{l}</div>)}</div></div>
+   :<div style={{flex:1,minHeight:0,display:'flex',flexDirection:'column'}}>{main}</div>}
+  {bottom&&<div style={{flex:'none',height:'74mm',marginTop:'5mm',borderTop:'2px dashed #000',paddingTop:'3mm',overflow:'hidden',position:'relative'}}>
+   <span style={{position:'absolute',left:'4mm',top:-11,background:'#fff',fontSize:15,lineHeight:1}}>✂</span>
+   <div style={{textAlign:'center',fontSize:10,fontWeight:700,letterSpacing:'.2em',marginBottom:6}}>TEAR AWAY · INTERNAL STAFF COPY · KEEP WITH THE JOB</div>
+   {slip.stub.map((l,i)=><div key={i} style={i===0&&!Array.isArray(l)?{fontSize:20,fontWeight:800}:{}}>{sl(l)}</div>)}</div>}</div>}
 // Checkout flow: big green check first, then Print. The window closes itself when printing is finished.
 export function Gate({slip,onClose,title='Done',sub,a4only}){const [m,setM]=useState(a4only?'a4':localStorage.rw||'a4'),a4=m==='a4',tear=!!(slip.stub&&slip.stub.length)
  const go=()=>{if(!a4only)localStorage.rw=m;const end=()=>{removeEventListener('afterprint',end);onClose()};addEventListener('afterprint',end);setTimeout(()=>print(),60)}
  return <><div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-3 backdrop-blur-sm print:hidden"><Card className="max-h-[92vh] w-full max-w-sm overflow-auto text-center !bg-white dark:!bg-slate-900">
   <div className="pop mx-auto grid h-32 w-32 place-items-center rounded-full bg-emerald-500 shadow-xl shadow-emerald-500/40"><svg viewBox="0 0 24 24" className="h-20 w-20" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
   <h3 className="mt-5 text-2xl font-extrabold">{title}</h3>{sub&&<p className="mt-1 text-slate-500">{sub}</p>}
-  {!a4only&&<div className="mt-5 text-left"><Sel label={`Paper (A4 = one full page${tear?' with the staff tear-away at the bottom':''})`} o={['a4','80','58']} value={m} onChange={e=>setM(e.target.value)}/></div>}
-  {a4only&&<p className="mt-4 text-sm text-slate-500">Prints on one full A4 page{tear?', staff tear-away at the bottom':''}.</p>}
+  {!a4only&&<div className="mt-5 text-left"><Sel label={`Paper (A4 = one full page${tear?' with the tear-away stub':''})`} o={['a4','80','58']} value={m} onChange={e=>setM(e.target.value)}/></div>}
+  {a4only&&<p className="mt-4 text-sm text-slate-500">Prints on one full A4 page{tear?', with the tear-away stub':''}.</p>}
   <div className="mt-4 flex gap-2"><Btn className="flex-1 !py-3 text-base" onClick={go}>🖨 Print</Btn><Btn v="g" className="!py-3" onClick={onClose}>Close</Btn></div>
   <details className="mt-3 text-left text-sm"><summary className="cursor-pointer text-slate-500">Preview</summary><div className="mt-2 overflow-x-auto rounded-xl bg-slate-200 p-3"><div className="mx-auto w-fit"><Slip slip={slip} w={m}/></div></div></details></Card></div>
   <PrintSheet page={a4?'A4 portrait':m+'mm auto'}>{a4?<A4Receipt slip={slip} copy={tear?'CUSTOMER / MAIN SHEET':'CLIENT INVOICE'}/>:<Slip slip={slip} w={m}/>}</PrintSheet></>}
 export const sns=l=>l.serial?[l.serial]:(l.imeis&&l.imeis.length?l.imeis.filter(Boolean):l.imei?[l.imei]:[])
-const _saleSlip=s=>({title:'RECEIPT '+s.code,lines:[new Date(s.date).toLocaleString(),`${s.name||''} ${s.phone||''}`,'--',...s.lines.flatMap(l=>{const n=sns(l);return [`${l.q} x ${l.name}  ${l.price*l.q}`,...n.map((x,i)=>`SN${n.length>1?' #'+(i+1):''} ${x}${l.tag&&n.length===1?' ['+l.tag+']':''}`),l.spec?l.spec:'',l.until?'Warranty to '+l.until:'No warranty'].filter(Boolean)}),'--',`Discount ${s.disc}`,`TOTAL ${s.total} ETB (${s.pay})`],stub:[]})
+const _saleSlip=s=>({title:'RECEIPT '+s.code,lines:[new Date(s.date).toLocaleString(),`${s.name||''} ${s.phone||''}`,'--',...s.lines.flatMap(l=>{const n=sns(l);return [`${l.q} x ${l.name}  ${l.price*l.q}`,...n.map((x,i)=>`SN${n.length>1?' #'+(i+1):''} ${x}${l.tag&&n.length===1?' ['+l.tag+']':''}`),l.spec?l.spec:'',l.until?'Warranty to '+l.until:'No warranty'].filter(Boolean)}),'--',`Discount ${s.disc}`,...(s.bank?[`Paid via ${s.bank}${s.txRef?' · Ref '+s.txRef:''}`,s.verify&&s.verify.status==='verified'?'Receipt VERIFIED':s.verify&&s.verify.status==='failed'?'Receipt NOT verified':'Receipt not checked']:[]),`TOTAL ${s.total} ETB (${s.pay})`],stub:[]})
 export const ItemImg=({i,cls='h-32'})=>i.img?<img src={i.img} alt="" className={`${cls} w-full rounded-xl bg-slate-500/5 object-contain p-1`}/>:<div className={`${cls} grid w-full place-items-center rounded-xl bg-gradient-to-br from-orange-500/15 to-violet-500/15 text-5xl`}>{{Phones:'📱',Laptops:'💻',Desktops:'🖥️',Modems:'📡',Parts:'🔧',Accessories:'🎧'}[i.cat]||'📦'}</div>
 export async function shrink(f){const b=await createImageBitmap(f),k=Math.min(1,480/Math.max(b.width,b.height)),c=document.createElement('canvas');c.width=b.width*k;c.height=b.height*k;c.getContext('2d').drawImage(b,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.72)}
 export const Page=({title,children,right})=><div className="mx-auto max-w-6xl p-4 sm:p-6"><div className="mb-5 flex flex-wrap items-center gap-3"><h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{title}</h1><span className="flex-1"/>{right}</div><div className="space-y-4">{children}</div></div>

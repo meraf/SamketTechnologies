@@ -40,15 +40,15 @@ export const ps = (t, tear = false) => ({
           ].filter(Boolean)
         : []),
   ],
+  // Compact right-hand tear-away strip: customer, phone, date, problem only.
   stub: !tear
     ? []
     : [
-        t.code,
-        `${t.name} ${t.phone}`,
-        t.device || "",
-        t.imei ? "IMEI " + t.imei : "",
-        (t.issue || "").slice(0, 60),
-      ].filter(Boolean),
+        ["Customer", t.name],
+        ["Phone", t.phone],
+        ["Date", new Date(t.date).toLocaleDateString()],
+        ["Problem", (t.issue || "").slice(0, 220)],
+      ].filter((r) => r[1]),
 });
 export default function NewTicket() {
   const [f, b, setF] = useF({
