@@ -14,6 +14,9 @@ import {
   CONDS,
   condLabel,
 } from "../ui";
+// Every category except small Parts / Accessories gets the full per-unit receiving form (serial, cost, RAM, storage, condition...).
+export const DETAILED = ["Phones", "Laptops", "Desktops", "Modems", "Tablets", "Other"];
+export const CATS = ["Phones", "Laptops", "Desktops", "Modems", "Tablets", "Parts", "Accessories", "Other"];
 export default function Inventory() {
   const d = useDB(),
     [f, b, setF] = useF(),
@@ -53,6 +56,8 @@ export default function Inventory() {
         cond: i.cond,
         condNote: i.condNote,
         ucost: i.cost || "",
+        ucpu: i.cpu || "",
+        unotes: "",
       });
       return;
     }
@@ -80,6 +85,8 @@ export default function Inventory() {
       cost,
       ram: String(f.ram || "").trim(),
       storage: String(f.storage || "").trim(),
+      cpu: String(f.ucpu || "").trim(),
+      notes: String(f.unotes || "").trim(),
       cond: f.cond,
       condNote: f.cond === "Used" ? note : "",
       receivedDate: Date.now(),
@@ -124,21 +131,20 @@ export default function Inventory() {
             <In label="Name" required {...b("name")} />
             <Sel
               label="Category"
-              o={[
-                "Phones",
-                "Laptops",
-                "Desktops",
-                "Modems",
-                "Tablets",
-                "Parts",
-                "Accessories",
-                "Other",
-              ]}
-              {...b("cat")}
+              o={CATS}
+              value={f.cat || ""}
+              onChange={(e) =>
+                // Phones, laptops, desktops, modems, tablets and other electronics are always tracked per unit.
+                setF({ ...f, cat: e.target.value, ...(DETAILED.includes(e.target.value) ? { ser: "yes" } : {}) })
+              }
             />
             <Sel
-              label="Track serial / IMEI per unit"
-              o={["yes", "no"]}
+              label={
+                DETAILED.includes(f.cat)
+                  ? "Track serial / IMEI per unit (required for this category)"
+                  : "Track serial / IMEI per unit"
+              }
+              o={DETAILED.includes(f.cat) && !(f.id && f.ser === "no") ? ["yes"] : ["yes", "no"]}
               {...b("ser")}
             />
             <In
@@ -224,6 +230,8 @@ export default function Inventory() {
                 <In label="Cost for this unit (ETB)" type="number" {...b("ucost")} />
                 <In label="RAM" {...b("ram")} />
                 <In label="Storage" {...b("storage")} />
+                <In label="Processor / chip (optional)" {...b("ucpu")} />
+                <In label="Notes / custom attributes (optional)" placeholder="e.g. colour, screen size, keyboard layout" {...b("unotes")} />
                 <Sel label="Condition *" o={["Select…", ...CONDS]} {...b("cond")} />
                 {f.cond === "Used" && (
                   <In
@@ -250,7 +258,8 @@ export default function Inventory() {
                     >
                       <span className="font-mono">{u.serial}</span>
                       <span className="text-slate-500">
-                        {[u.ram, u.storage].filter(Boolean).join(" / ") || "no specs"} ·{" "}
+                        {[u.cpu, u.ram, u.storage].filter(Boolean).join(" / ") || "no specs"}
+                        {u.notes ? ` · ${u.notes}` : ""} ·{" "}
                         {condLabel(u)} · {u.cost} ETB
                       </span>
                       <button
@@ -265,7 +274,15 @@ export default function Inventory() {
               )}
             </>
           ) : (
-            <In label="Quantity" type="number" {...b("rq")} />
+            <>
+              {DETAILED.includes(rc.cat) && (
+                <p className="rounded-xl bg-amber-500/10 p-2 text-sm text-amber-700 dark:text-amber-400">
+                  This {rc.cat.toLowerCase()} item was created without per-unit tracking. Use Edit, set
+                  "Track serial / IMEI per unit" to yes, then Receive to get the detailed form.
+                </p>
+              )}
+              <In label="Quantity" type="number" {...b("rq")} />
+            </>
           )}
           <div className="flex gap-2">
             {!rc.ser && <Btn onClick={receive}>Add stock</Btn>}
@@ -312,7 +329,8 @@ export default function Inventory() {
                         {u.tag && u.tag + " · "}
                         {u.serial} · {u.status}
                         {u.cond ? " · " + condLabel(u) : ""}
-                        {u.ram || u.storage ? " · " + [u.ram, u.storage].filter(Boolean).join("/") : ""}
+                        {u.cpu || u.ram || u.storage ? " · " + [u.cpu, u.ram, u.storage].filter(Boolean).join("/") : ""}
+                        {u.notes ? " · " + u.notes : ""}
                         {u.until ? " · warranty " + u.until : ""}
                       </div>
                     ))}
@@ -327,6 +345,8 @@ export default function Inventory() {
                     seen.current = new Set();
                     setF({
                       ucost: i.cost || "",
+                      ucpu: i.cpu || "",
+                      unotes: "",
                       ram: i.ram,
                       storage: i.storage,
                       cond: i.cond,

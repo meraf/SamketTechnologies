@@ -128,11 +128,13 @@ export function BankPanel({ value: v, onChange, total, phone, accts }) {
         f = { b64: await b64(blob), type, name: file.name };
         setBusy("Verifying…");
       }
-      const acct = accts.find((a) => a.bank === name),
+      // Every saved account for the chosen bank (falls back to all saved accounts) goes to the server, never just "the first".
+      const mine = accts.filter((a) => a.bank === name),
+        pool = (mine.length ? mine : accts).map((a) => a.number).filter(Boolean),
         r = await fetch((localStorage.surl || "") + "/api/verify-payment", {
           method: "POST",
           headers: { "content-type": "application/json", "x-key": localStorage.skey || DEFAULT_SYNC_KEY },
-          body: JSON.stringify({ bank: name, ref: v.ref, account: acct && acct.number, phone, file: f, text }),
+          body: JSON.stringify({ bank: name, ref: v.ref, account: pool[0] || "", accounts: pool, phone, file: f, text }),
         });
       resp = r.ok ? await r.json() : { configured: true, http: r.status, result: { success: false, message: "Server error " + r.status } };
     } catch (e) {

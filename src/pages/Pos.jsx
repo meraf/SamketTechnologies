@@ -30,6 +30,7 @@ const E = { n: "", p: "", d: 0, m: "Cash" },
 //  - an untracked item with a quantity: Qty 3 shows "Serial Number #1..#3" so every unit gets its own serial.
 const specOf = (u, i) =>
   [
+    u.cpu || "",
     u.ram || i.ram,
     u.storage || i.storage,
     (u.cond || i.cond) === "Used" && (u.condNote || i.condNote)
